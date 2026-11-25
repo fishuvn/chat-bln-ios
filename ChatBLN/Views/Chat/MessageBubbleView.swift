@@ -6,6 +6,11 @@ struct MessageBubbleView: View {
     let message: MessageDto
     let isOutgoing: Bool
     let settings: AppSettings
+    var isSelectionMode: Bool = false
+    var isSelected: Bool = false
+    var onToggleSelect: (() -> Void)? = nil
+    var onStartMultiSelect: (() -> Void)? = nil
+    var onRequestDeleteSingle: (() -> Void)? = nil
     var onTapImage: ((URL) -> Void)?
 
     @Environment(\.openURL) private var openURL
@@ -40,84 +45,127 @@ struct MessageBubbleView: View {
     }
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 8) {
-            if isOutgoing {
-                Spacer(minLength: 48)
-            } else {
-                AvatarView(
-                    name: message.sender.displayName,
-                    avatarURL: settings.resolveAssetURL(message.sender.avatarUrl),
-                    size: 30
-                )
+        HStack(alignment: .center, spacing: 8) {
+            if isSelectionMode {
+                Button {
+                    onToggleSelect?()
+                } label: {
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .font(.title3)
+                        .foregroundStyle(isSelected ? Color.chatBLNPrimary : .secondary)
+                }
+                .buttonStyle(.plain)
             }
 
-            VStack(alignment: isOutgoing ? .trailing : .leading, spacing: 4) {
-                if !isOutgoing {
-                    Text(message.sender.displayName)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.leading, 4)
+            HStack(alignment: .bottom, spacing: 8) {
+                if isOutgoing {
+                    Spacer(minLength: 40)
+                } else {
+                    AvatarView(
+                        name: message.sender.displayName,
+                        avatarURL: settings.resolveAssetURL(message.sender.avatarUrl),
+                        size: 30
+                    )
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    if kind == "IMAGE", let imageURL = attachmentURL {
-                        imageAttachmentView(url: imageURL)
-                    } else if kind == "VIDEO", let videoURL = attachmentURL {
-                        videoAttachmentView(url: videoURL)
-                    } else if kind == "FILE", let fileURL = attachmentURL {
-                        fileAttachmentCard(url: fileURL)
+                VStack(alignment: isOutgoing ? .trailing : .leading, spacing: 4) {
+                    if !isOutgoing {
+                        Text(message.sender.displayName)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 4)
                     }
 
-                    if shouldShowTextBody {
-                        Text(
-                            MarkdownMessageFormatter.makeAttributedString(
-                                from: message.content,
-                                isOutgoing: isOutgoing
+                    VStack(alignment: .leading, spacing: 8) {
+                        if kind == "IMAGE", let imageURL = attachmentURL {
+                            imageAttachmentView(url: imageURL)
+                        } else if kind == "VIDEO", let videoURL = attachmentURL {
+                            videoAttachmentView(url: videoURL)
+                        } else if kind == "FILE", let fileURL = attachmentURL {
+                            fileAttachmentCard(url: fileURL)
+                        }
+
+                        if shouldShowTextBody {
+                            Text(
+                                MarkdownMessageFormatter.makeAttributedString(
+                                    from: message.content,
+                                    isOutgoing: isOutgoing
+                                )
                             )
-                        )
-                        .font(.body)
-                        .foregroundStyle(isOutgoing ? Color.white : Color.primary)
-                        .tint(isOutgoing ? Color.white : Color.chatBLNPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    }
+                            .font(.body)
+                            .foregroundStyle(isOutgoing ? Color.white : Color.primary)
+                            .tint(isOutgoing ? Color.white : Color.chatBLNPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        }
 
-                    if let link = extractedLink, kind != "IMAGE", kind != "VIDEO", kind != "FILE" {
-                        linkPreviewCard(link: link)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-                .background(
-                    isOutgoing ? Color.chatBLNPrimary : Color(.secondarySystemGroupedBackground),
-                    in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-                )
-                .contextMenu {
-                    Button {
-                        UIPasteboard.general.string = message.content
-                    } label: {
-                        Label("Sao chép nội dung", systemImage: "doc.on.doc")
-                    }
-
-                    if let attachmentURL {
-                        Button {
-                            openURL(attachmentURL)
-                        } label: {
-                            Label("Mở liên kết tệp", systemImage: "safari")
+                        if let link = extractedLink, kind != "IMAGE", kind != "VIDEO", kind != "FILE" {
+                            linkPreviewCard(link: link)
                         }
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 9)
+                    .background(
+                        isOutgoing ? Color.chatBLNPrimary : Color(.secondarySystemGroupedBackground),
+                        in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    )
+                    .contextMenu {
+                        Button {
+                            UIPasteboard.general.string = message.content
+                        } label: {
+                            Label("Sao chép nội dung", systemImage: "doc.on.doc")
+                        }
+
+                        if let attachmentURL {
+                            Button {
+                                openURL(attachmentURL)
+                            } label: {
+                                Label("Mở liên kết tệp", systemImage: "safari")
+                            }
+                        }
+
+                        if let onStartMultiSelect {
+                            Button {
+                                onStartMultiSelect()
+                            } label: {
+                                Label("Chọn nhiều tin nhắn...", systemImage: "checkmark.circle")
+                            }
+                        }
+
+                        if let onRequestDeleteSingle {
+                            Divider()
+                            Button(role: .destructive) {
+                                onRequestDeleteSingle()
+                            } label: {
+                                Label("Xóa dòng tin nhắn", systemImage: "trash")
+                            }
+                        }
+                    }
+
+                    let timeString = ChatDateFormatter.formatMessageTime(message.createdAt)
+                    if !timeString.isEmpty {
+                        Text(timeString)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 4)
+                    }
                 }
 
-                let timeString = ChatDateFormatter.formatMessageTime(message.createdAt)
-                if !timeString.isEmpty {
-                    Text(timeString)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 4)
+                if !isOutgoing {
+                    Spacer(minLength: 40)
                 }
             }
-
-            if !isOutgoing {
-                Spacer(minLength: 48)
+            .allowsHitTesting(!isSelectionMode)
+        }
+        .padding(.vertical, isSelectionMode ? 2 : 0)
+        .padding(.horizontal, isSelectionMode ? 4 : 0)
+        .background(
+            isSelected ? Color.chatBLNPrimary.opacity(0.11) : Color.clear,
+            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if isSelectionMode {
+                onToggleSelect?()
             }
         }
     }

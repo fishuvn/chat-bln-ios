@@ -16,6 +16,21 @@ struct DeleteConversationResponse: Codable, Hashable, Sendable {
     let conversationId: Int64?
 }
 
+struct DeleteMessagesRequest: Codable, Hashable, Sendable {
+    let messageIds: [Int64]
+    let mode: String
+}
+
+struct DeleteMessagesResponse: Codable, Hashable, Sendable {
+    let conversationId: Int64
+    let mode: String?
+    let deletedIds: [Int64]
+    let lastMessage: String?
+    let lastMessageSenderName: String?
+    let lastMessageSenderUsername: String?
+    let lastMessageTime: String?
+}
+
 struct APIErrorResponse: Codable, Hashable, Sendable {
     let status: Int?
     let error: String?
@@ -116,9 +131,14 @@ struct ConversationItemResponse: Codable, Identifiable, Hashable, Sendable {
     var lastMessageSenderName: String?
     var lastMessageSenderUsername: String?
     var lastMessageTime: String?
+    var currentUserRole: String? = nil
 
     var isGroup: Bool {
         type.uppercased() == "GROUP"
+    }
+
+    var isCurrentUserGroupAdmin: Bool {
+        (currentUserRole ?? "").uppercased() == "ADMIN"
     }
 
     var displayName: String {

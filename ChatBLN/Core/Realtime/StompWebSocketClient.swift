@@ -4,6 +4,7 @@ enum StompRealtimeEvent: Sendable {
     case connected
     case disconnected
     case message(MessageDto)
+    case messageDeletion(DeleteMessagesResponse)
     case presence(PresenceEvent)
 }
 
@@ -94,6 +95,7 @@ final class StompWebSocketClient {
     }
 
     var onMessageReceived: ((MessageDto) -> Void)?
+    var onMessageDeletionReceived: ((DeleteMessagesResponse) -> Void)?
     var onPresenceReceived: ((PresenceEvent) -> Void)?
     var onConnectionStateChanged: ((Bool) -> Void)?
 
@@ -278,6 +280,11 @@ final class StompWebSocketClient {
                 if let event = try? decoder.decode(PresenceEvent.self, from: bodyData) {
                     onPresenceReceived?(event)
                     eventContinuation?.yield(.presence(event))
+                }
+            } else if destination.hasSuffix("/deletions") {
+                if let deletion = try? decoder.decode(DeleteMessagesResponse.self, from: bodyData) {
+                    onMessageDeletionReceived?(deletion)
+                    eventContinuation?.yield(.messageDeletion(deletion))
                 }
             } else if destination.hasPrefix("/topic/users/") || destination.hasPrefix("/topic/conversations/") {
                 if let dto = try? decoder.decode(MessageDto.self, from: bodyData) {

@@ -126,6 +126,18 @@ final class APIClient {
         )
     }
 
+    func deleteMessages(
+        conversationId: Int64,
+        messageIds: [Int64],
+        mode: String
+    ) async throws -> DeleteMessagesResponse {
+        try await request(
+            path: "/api/conversations/\(conversationId)/messages/delete",
+            method: "POST",
+            body: DeleteMessagesRequest(messageIds: messageIds, mode: mode)
+        )
+    }
+
     func getMessages(
         conversationId: Int64,
         before: Int64? = nil,

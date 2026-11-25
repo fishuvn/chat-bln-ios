@@ -65,6 +65,7 @@ final class ChatStoreViewModel {
         } else {
             stompClient.subscribe(topic: "/topic/presence")
             stompClient.subscribe(topic: "/topic/users/\(currentUsername)")
+            stompClient.subscribe(topic: "/topic/users/\(currentUsername)/deletions")
             stompClient.connect(token: token)
         }
 
@@ -100,6 +101,7 @@ final class ChatStoreViewModel {
         stompClient.disconnect()
         stompClient.subscribe(topic: "/topic/presence")
         stompClient.subscribe(topic: "/topic/users/\(currentUsername)")
+        stompClient.subscribe(topic: "/topic/users/\(currentUsername)/deletions")
         if let activeId = activeConversationId {
             stompClient.subscribe(topic: "/topic/conversations/\(activeId)")
         }
@@ -246,6 +248,19 @@ final class ChatStoreViewModel {
             activeConversationId = nil
         }
         navigationPath.removeAll { $0.id == conversationId }
+    }
+
+    func deleteMessages(
+        conversationId: Int64,
+        messageIds: [Int64],
+        mode: String
+    ) async throws {
+        let res = try await apiClient.deleteMessages(
+            conversationId: conversationId,
+            messageIds: messageIds,
+            mode: mode
+        )
+        handleIncomingMessageDeletion(res)
     }
 
     // MARK: - Messages & Attachments
@@ -447,6 +462,10 @@ final class ChatStoreViewModel {
             self?.handleIncomingRealtimeMessage(dto)
         }
 
+        stompClient.onMessageDeletionReceived = { [weak self] ev in
+            self?.handleIncomingMessageDeletion(ev)
+        }
+
         stompClient.onPresenceReceived = { [weak self] event in
             self?.handleIncomingPresence(event)
         }
@@ -482,6 +501,22 @@ final class ChatStoreViewModel {
             updated.lastMessageSenderUsername = dto.sender.username
             updated.lastMessageTime = dto.createdAt
             conversations.insert(updated, at: 0)
+        }
+    }
+
+    private func handleIncomingMessageDeletion(_ ev: DeleteMessagesResponse) {
+        let idSet = Set(ev.deletedIds)
+        if var list = messagesByConversation[ev.conversationId] {
+            list.removeAll { idSet.contains($0.id) }
+            messagesByConversation[ev.conversationId] = list
+        }
+        if let index = conversations.firstIndex(where: { $0.id == ev.conversationId }) {
+            conversations[index].lastMessage = ev.lastMessage
+            conversations[index].lastMessageSenderName = ev.lastMessageSenderName
+            conversations[index].lastMessageSenderUsername = ev.lastMessageSenderUsername
+            if let lastTime = ev.lastMessageTime {
+                conversations[index].lastMessageTime = lastTime
+            }
         }
     }
 

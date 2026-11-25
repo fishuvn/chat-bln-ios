@@ -28,6 +28,11 @@ struct ChatRoomView: View {
     @State private var fullScreenImage: FullScreenImageItem?
     @State private var isSendingText: Bool = false
     @State private var roomErrorMessage: String?
+    @State private var isSelectingMessages: Bool = false
+    @State private var selectedMessageIds: Set<Int64> = []
+    @State private var pendingDeleteMessageIds: [Int64] = []
+    @State private var showDeleteMessageDialog: Bool = false
+    @State private var isDeletingMessages: Bool = false
     @FocusState private var isComposerFocused: Bool
 
     private var conversation: ConversationItemResponse {
@@ -86,7 +91,11 @@ struct ChatRoomView: View {
 
             Divider()
 
-            composerBar
+            if isSelectingMessages {
+                selectionBottomBar
+            } else {
+                composerBar
+            }
         }
         .background(Color(.systemGroupedBackground))
         .navigationBarTitleDisplayMode(.inline)
@@ -96,6 +105,18 @@ struct ChatRoomView: View {
                 headerTitleButton
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    withAnimation(.snappy(duration: 0.2)) {
+                        isSelectingMessages.toggle()
+                        if !isSelectingMessages {
+                            selectedMessageIds.removeAll()
+                        }
+                    }
+                } label: {
+                    Image(systemName: isSelectingMessages ? "checkmark.circle.fill" : "checkmark.circle")
+                }
+                .accessibilityLabel("Chọn nhiều tin nhắn")
+
                 Button {
                     withAnimation(.snappy(duration: 0.2)) {
                         isSearchBarVisible.toggle()
@@ -114,6 +135,33 @@ struct ChatRoomView: View {
                     Image(systemName: "info.circle")
                 }
                 .accessibilityLabel("Thông tin cuộc trò chuyện")
+            }
+        }
+        .confirmationDialog(
+            pendingDeleteMessageIds.count == 1
+                ? "Chọn cách xóa dòng tin nhắn này"
+                : "Chọn cách xóa \(pendingDeleteMessageIds.count) tin nhắn đã chọn",
+            isPresented: $showDeleteMessageDialog,
+            titleVisibility: .visible
+        ) {
+            if canDeletePendingForEveryone {
+                Button("Thu hồi / Xóa với mọi người", role: .destructive) {
+                    Task {
+                        await executeDeleteMessages(mode: "FOR_EVERYONE")
+                    }
+                }
+            }
+            Button("Xóa ở phía tôi", role: .destructive) {
+                Task {
+                    await executeDeleteMessages(mode: "FOR_ME")
+                }
+            }
+            Button("Huỷ", role: .cancel) {
+                pendingDeleteMessageIds = []
+            }
+        } message: {
+            if !canDeletePendingForEveryone && conversation.isGroup {
+                Text("Trong nhóm, thành viên chỉ thu hồi với mọi người được tin nhắn do chính mình gửi.")
             }
         }
         .photosPicker(
@@ -294,6 +342,25 @@ struct ChatRoomView: View {
                                 message: msg,
                                 isOutgoing: isOutgoing,
                                 settings: settings,
+                                isSelectionMode: isSelectingMessages,
+                                isSelected: selectedMessageIds.contains(msg.id),
+                                onToggleSelect: {
+                                    if selectedMessageIds.contains(msg.id) {
+                                        selectedMessageIds.remove(msg.id)
+                                    } else {
+                                        selectedMessageIds.insert(msg.id)
+                                    }
+                                },
+                                onStartMultiSelect: {
+                                    withAnimation(.snappy(duration: 0.2)) {
+                                        isSelectingMessages = true
+                                        selectedMessageIds.insert(msg.id)
+                                    }
+                                },
+                                onRequestDeleteSingle: {
+                                    pendingDeleteMessageIds = [msg.id]
+                                    showDeleteMessageDialog = true
+                                },
                                 onTapImage: { url in
                                     fullScreenImage = FullScreenImageItem(url: url)
                                 }
@@ -318,6 +385,97 @@ struct ChatRoomView: View {
             .onAppear {
                 proxy.scrollTo("CHAT_BOTTOM_ANCHOR", anchor: .bottom)
             }
+        }
+    }
+
+    private var canDeletePendingForEveryone: Bool {
+        guard !pendingDeleteMessageIds.isEmpty else { return false }
+        if !conversation.isGroup || conversation.isCurrentUserGroupAdmin {
+            return true
+        }
+        let idSet = Set(pendingDeleteMessageIds)
+        let selected = allMessages.filter { idSet.contains($0.id) }
+        return !selected.isEmpty && selected.allSatisfy {
+            $0.sender.username.lowercased() == chatStore.currentUsername.lowercased()
+        }
+    }
+
+    private var selectionBottomBar: some View {
+        HStack(spacing: 12) {
+            Button {
+                let visibleIds = Set(visibleMessages.map(\.id))
+                if !visibleIds.isEmpty && visibleIds.isSubset(of: selectedMessageIds) {
+                    selectedMessageIds.subtract(visibleIds)
+                } else {
+                    selectedMessageIds.formUnion(visibleIds)
+                }
+            } label: {
+                Text(
+                    !visibleMessages.isEmpty && Set(visibleMessages.map(\.id)).isSubset(of: selectedMessageIds)
+                        ? "Bỏ chọn"
+                        : "Chọn tất cả"
+                )
+                .font(.subheadline.weight(.semibold))
+            }
+
+            Spacer()
+
+            Text("Đã chọn \(selectedMessageIds.count)")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Button(role: .destructive) {
+                pendingDeleteMessageIds = Array(selectedMessageIds)
+                showDeleteMessageDialog = true
+            } label: {
+                HStack(spacing: 5) {
+                    if isDeletingMessages {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "trash.fill")
+                    }
+                    Text("Xóa (\(selectedMessageIds.count))")
+                        .fontWeight(.semibold)
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.red)
+            .disabled(selectedMessageIds.isEmpty || isDeletingMessages)
+
+            Button("Xong") {
+                withAnimation(.snappy(duration: 0.2)) {
+                    isSelectingMessages = false
+                    selectedMessageIds.removeAll()
+                }
+            }
+            .font(.subheadline.weight(.semibold))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color(.systemBackground))
+    }
+
+    private func executeDeleteMessages(mode: String) async {
+        let ids = pendingDeleteMessageIds
+        guard !ids.isEmpty else { return }
+        isDeletingMessages = true
+        defer { isDeletingMessages = false }
+        do {
+            try await chatStore.deleteMessages(
+                conversationId: conversationId,
+                messageIds: ids,
+                mode: mode
+            )
+            pendingDeleteMessageIds = []
+            selectedMessageIds.subtract(ids)
+            if selectedMessageIds.isEmpty {
+                isSelectingMessages = false
+            }
+        } catch {
+            roomErrorMessage = error.localizedDescription
         }
     }
 
