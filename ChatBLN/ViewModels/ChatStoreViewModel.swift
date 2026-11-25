@@ -27,6 +27,7 @@ final class ChatStoreViewModel {
 
     var conversations: [ConversationItemResponse] = []
     var messagesByConversation: [Int64: [MessageDto]] = [:]
+    var groupMembersByConversation: [Int64: [GroupMemberDto]] = [:]
     var hasMoreByConversation: [Int64: Bool] = [:]
     var oldestMessageIdByConversation: [Int64: Int64] = [:]
     var unreadCountByConversation: [Int64: Int] = [:]
@@ -66,6 +67,7 @@ final class ChatStoreViewModel {
             stompClient.subscribe(topic: "/topic/presence")
             stompClient.subscribe(topic: "/topic/users/\(currentUsername)")
             stompClient.subscribe(topic: "/topic/users/\(currentUsername)/deletions")
+            stompClient.subscribe(topic: "/topic/friendships/\(currentUsername)")
             stompClient.connect(token: token)
         }
 
@@ -102,6 +104,7 @@ final class ChatStoreViewModel {
         stompClient.subscribe(topic: "/topic/presence")
         stompClient.subscribe(topic: "/topic/users/\(currentUsername)")
         stompClient.subscribe(topic: "/topic/users/\(currentUsername)/deletions")
+        stompClient.subscribe(topic: "/topic/friendships/\(currentUsername)")
         if let activeId = activeConversationId {
             stompClient.subscribe(topic: "/topic/conversations/\(activeId)")
         }
@@ -112,6 +115,7 @@ final class ChatStoreViewModel {
         stompClient.disconnect()
         conversations = []
         messagesByConversation = [:]
+        groupMembersByConversation = [:]
         hasMoreByConversation = [:]
         oldestMessageIdByConversation = [:]
         unreadCountByConversation = [:]
@@ -135,6 +139,11 @@ final class ChatStoreViewModel {
         do {
             let fetched = try await apiClient.getConversations()
             conversations = fetched
+            for item in fetched where item.isGroup {
+                if let embedded = item.members, !embedded.isEmpty {
+                    groupMembersByConversation[item.id] = embedded
+                }
+            }
             errorBanner = nil
         } catch {
             if conversations.isEmpty {
@@ -241,6 +250,7 @@ final class ChatStoreViewModel {
         stompClient.unsubscribe(topic: "/topic/conversations/\(conversationId)")
         conversations.removeAll { $0.id == conversationId }
         messagesByConversation.removeValue(forKey: conversationId)
+        groupMembersByConversation.removeValue(forKey: conversationId)
         hasMoreByConversation.removeValue(forKey: conversationId)
         oldestMessageIdByConversation.removeValue(forKey: conversationId)
         unreadCountByConversation.removeValue(forKey: conversationId)
@@ -269,7 +279,25 @@ final class ChatStoreViewModel {
         activeConversationId = conversationId
         unreadCountByConversation[conversationId] = 0
         stompClient.subscribe(topic: "/topic/conversations/\(conversationId)")
+        if conversation(for: conversationId)?.isGroup == true {
+            Task {
+                await loadConversationMembers(conversationId: conversationId)
+            }
+        }
         await loadInitialMessages(conversationId: conversationId)
+    }
+
+    func loadConversationMembers(conversationId: Int64) async {
+        do {
+            let members = try await apiClient.getConversationMembers(conversationId: conversationId)
+            groupMembersByConversation[conversationId] = members
+            if let idx = conversations.firstIndex(where: { $0.id == conversationId }) {
+                conversations[idx].members = members
+                conversations[idx].memberCount = members.count
+            }
+        } catch {
+            // Giữ danh sách sẵn có nếu mất mạng tạm thời
+        }
     }
 
     func leaveChatRoom(conversationId: Int64) {
@@ -437,6 +465,24 @@ final class ChatStoreViewModel {
         if !sentRequests.contains(where: { $0.id == created.id }) {
             sentRequests.insert(created, at: 0)
         }
+        for idx in conversations.indices {
+            if !conversations[idx].isGroup && conversations[idx].targetUserId == userId {
+                conversations[idx].friendshipStatus = "PENDING"
+            }
+        }
+    }
+
+    func unfriend(userId: Int64) async throws {
+        _ = try await apiClient.unfriend(targetUserId: userId)
+        friends.removeAll { $0.id == userId }
+        receivedRequests.removeAll { $0.requesterId == userId }
+        sentRequests.removeAll { $0.addresseeId == userId }
+        for idx in conversations.indices {
+            if !conversations[idx].isGroup && conversations[idx].targetUserId == userId {
+                conversations[idx].isFriend = false
+                conversations[idx].friendshipStatus = nil
+            }
+        }
     }
 
     func acceptFriendRequest(_ friendshipId: Int64) async throws {
@@ -464,6 +510,16 @@ final class ChatStoreViewModel {
 
         stompClient.onMessageDeletionReceived = { [weak self] ev in
             self?.handleIncomingMessageDeletion(ev)
+        }
+
+        stompClient.onFriendshipReceived = { [weak self] _ in
+            guard let self else { return }
+            Task {
+                async let f: Void = self.loadFriends()
+                async let r: Void = self.loadFriendRequests()
+                async let c: Void = self.loadConversations()
+                _ = await (f, r, c)
+            }
         }
 
         stompClient.onPresenceReceived = { [weak self] event in
@@ -541,6 +597,22 @@ final class ChatStoreViewModel {
                 if let lastSeen = event.lastSeen {
                     friends[index].lastSeen = lastSeen
                 }
+            }
+        }
+
+        for (convId, var members) in groupMembersByConversation {
+            var updatedAny = false
+            for idx in members.indices {
+                if members[idx].id == event.userId {
+                    members[idx].isOnline = onlineFlag
+                    if let lastSeen = event.lastSeen {
+                        members[idx].lastSeen = lastSeen
+                    }
+                    updatedAny = true
+                }
+            }
+            if updatedAny {
+                groupMembersByConversation[convId] = members
             }
         }
     }

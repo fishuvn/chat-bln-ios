@@ -6,6 +6,8 @@ struct ContactsView: View {
 
     @State private var searchText: String = ""
     @State private var showAddFriendSheet: Bool = false
+    @State private var friendPendingUnfriend: FriendResponse?
+    @State private var unfriendError: String?
 
     private var onlineFriends: [FriendResponse] {
         filteredFriends.filter { $0.isOnline == true }
@@ -36,6 +38,14 @@ struct ContactsView: View {
                     emptyContactsState
                 } else {
                     List {
+                        if let unfriendError {
+                            Section {
+                                Text(unfriendError)
+                                    .font(.footnote)
+                                    .foregroundStyle(.red)
+                            }
+                        }
+
                         if !onlineFriends.isEmpty {
                             Section("Đang hoạt động (\(onlineFriends.count))") {
                                 ForEach(onlineFriends) { friend in
@@ -74,6 +84,33 @@ struct ContactsView: View {
                     .accessibilityLabel("Tìm và thêm bạn bè")
                 }
             }
+            .confirmationDialog(
+                friendPendingUnfriend.map {
+                    "Hủy kết bạn với \"\($0.displayName)\"? Hai bạn sẽ trở về trạng thái chưa kết bạn và có thể kết bạn lại bất cứ lúc nào."
+                } ?? "Hủy kết bạn?",
+                isPresented: Binding(
+                    get: { friendPendingUnfriend != nil },
+                    set: { if !$0 { friendPendingUnfriend = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                if let target = friendPendingUnfriend {
+                    Button("Hủy kết bạn", role: .destructive) {
+                        friendPendingUnfriend = nil
+                        Task {
+                            do {
+                                unfriendError = nil
+                                try await chatStore.unfriend(userId: target.id)
+                            } catch {
+                                unfriendError = error.localizedDescription
+                            }
+                        }
+                    }
+                }
+                Button("Đóng", role: .cancel) {
+                    friendPendingUnfriend = nil
+                }
+            }
             .sheet(isPresented: $showAddFriendSheet) {
                 AddFriendSheet(
                     settings: settings,
@@ -84,37 +121,73 @@ struct ContactsView: View {
     }
 
     private func friendRow(_ friend: FriendResponse) -> some View {
-        Button {
-            Task {
-                _ = await chatStore.startOrOpenPrivateChat(with: friend)
-            }
-        } label: {
-            HStack(spacing: 12) {
-                AvatarView(
-                    name: friend.displayName,
-                    avatarURL: settings.resolveAssetURL(friend.avatarUrl),
-                    size: 48,
-                    isOnline: friend.isOnline ?? false
-                )
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(friend.displayName)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.primary)
-
-                    Text("@\(friend.username) • \(ChatDateFormatter.formatPresenceStatus(isOnline: friend.isOnline, lastSeen: friend.lastSeen))")
-                        .font(.caption)
-                        .foregroundStyle(friend.isOnline == true ? Color.green : .secondary)
-                        .lineLimit(1)
+        HStack(spacing: 12) {
+            Button {
+                Task {
+                    _ = await chatStore.startOrOpenPrivateChat(with: friend)
                 }
+            } label: {
+                HStack(spacing: 12) {
+                    AvatarView(
+                        name: friend.displayName,
+                        avatarURL: settings.resolveAssetURL(friend.avatarUrl),
+                        size: 48,
+                        isOnline: friend.isOnline ?? false
+                    )
 
-                Spacer()
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(friend.displayName)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.primary)
 
-                Image(systemName: "bubble.right.fill")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.chatBLNPrimary)
+                        Text("@\(friend.username) • \(ChatDateFormatter.formatPresenceStatus(isOnline: friend.isOnline, lastSeen: friend.lastSeen))")
+                            .font(.caption)
+                            .foregroundStyle(friend.isOnline == true ? Color.green : .secondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "bubble.right.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.chatBLNPrimary)
+                }
+                .padding(.vertical, 2)
             }
-            .padding(.vertical, 2)
+            .buttonStyle(.plain)
+
+            Button(role: .destructive) {
+                friendPendingUnfriend = friend
+            } label: {
+                Image(systemName: "person.badge.minus")
+                    .font(.subheadline)
+                    .foregroundStyle(.red)
+                    .padding(8)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Hủy kết bạn với \(friend.displayName)")
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+                friendPendingUnfriend = friend
+            } label: {
+                Label("Hủy kết bạn", systemImage: "person.badge.minus")
+            }
+        }
+        .contextMenu {
+            Button {
+                Task {
+                    _ = await chatStore.startOrOpenPrivateChat(with: friend)
+                }
+            } label: {
+                Label("Nhắn tin", systemImage: "bubble.right")
+            }
+
+            Button(role: .destructive) {
+                friendPendingUnfriend = friend
+            } label: {
+                Label("Hủy kết bạn", systemImage: "person.badge.minus")
+            }
         }
     }
 

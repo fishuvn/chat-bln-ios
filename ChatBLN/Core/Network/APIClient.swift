@@ -126,6 +126,13 @@ final class APIClient {
         )
     }
 
+    func getConversationMembers(conversationId: Int64) async throws -> [GroupMemberDto] {
+        try await request(
+            path: "/api/conversations/\(conversationId)/members",
+            method: "GET"
+        )
+    }
+
     func deleteMessages(
         conversationId: Int64,
         messageIds: [Int64],
@@ -227,6 +234,13 @@ final class APIClient {
             path: "/api/friends/\(friendshipId)/reject",
             method: "PUT",
             body: EmptyRequestBody()
+        )
+    }
+
+    func unfriend(targetUserId: Int64) async throws -> UnfriendResponse {
+        try await request(
+            path: "/api/friends/\(targetUserId)",
+            method: "DELETE"
         )
     }
 

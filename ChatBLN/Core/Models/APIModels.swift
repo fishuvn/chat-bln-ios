@@ -16,6 +16,37 @@ struct DeleteConversationResponse: Codable, Hashable, Sendable {
     let conversationId: Int64?
 }
 
+struct UnfriendResponse: Codable, Hashable, Sendable {
+    let unfriended: Bool?
+    let targetUserId: Int64?
+}
+
+struct FriendshipEventDto: Codable, Hashable, Sendable {
+    let type: String?
+    let actorUserId: Int64?
+    let targetUserId: Int64?
+}
+
+struct GroupMemberDto: Codable, Identifiable, Hashable, Sendable {
+    let id: Int64
+    let username: String
+    let fullName: String?
+    var avatarUrl: String?
+    let role: String?
+    var isOnline: Bool?
+    var lastSeen: String?
+    let joinedAt: String?
+
+    var displayName: String {
+        let trimmed = fullName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? username : trimmed
+    }
+
+    var isAdmin: Bool {
+        (role ?? "").uppercased() == "ADMIN"
+    }
+}
+
 struct DeleteMessagesRequest: Codable, Hashable, Sendable {
     let messageIds: [Int64]
     let mode: String
@@ -132,6 +163,10 @@ struct ConversationItemResponse: Codable, Identifiable, Hashable, Sendable {
     var lastMessageSenderUsername: String?
     var lastMessageTime: String?
     var currentUserRole: String? = nil
+    var memberCount: Int? = nil
+    var members: [GroupMemberDto]? = nil
+    var isFriend: Bool? = nil
+    var friendshipStatus: String? = nil
 
     var isGroup: Bool {
         type.uppercased() == "GROUP"
@@ -139,6 +174,10 @@ struct ConversationItemResponse: Codable, Identifiable, Hashable, Sendable {
 
     var isCurrentUserGroupAdmin: Bool {
         (currentUserRole ?? "").uppercased() == "ADMIN"
+    }
+
+    var isUnfriendedPrivate: Bool {
+        !isGroup && isFriend == false
     }
 
     var displayName: String {

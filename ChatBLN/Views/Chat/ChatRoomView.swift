@@ -93,6 +93,8 @@ struct ChatRoomView: View {
 
             if isSelectingMessages {
                 selectionBottomBar
+            } else if conversation.isUnfriendedPrivate {
+                unfriendedBottomBar
             } else {
                 composerBar
             }
@@ -209,6 +211,7 @@ struct ChatRoomView: View {
                 conversation: conversation,
                 messages: allMessages,
                 settings: settings,
+                chatStore: chatStore,
                 onDeleteConversation: {
                     try await chatStore.deleteConversation(conversationId: conversationId)
                 }
@@ -258,7 +261,9 @@ struct ChatRoomView: View {
 
     private var subtitleStatusText: String {
         if conversation.isGroup {
-            return "Nhóm trò chuyện"
+            let loadedCount = chatStore.groupMembersByConversation[conversationId]?.count
+            let count = loadedCount ?? conversation.memberCount ?? 0
+            return count > 0 ? "\(count) thành viên" : "Nhóm trò chuyện"
         }
         return ChatDateFormatter.formatPresenceStatus(
             isOnline: conversation.isOnline,
@@ -477,6 +482,47 @@ struct ChatRoomView: View {
         } catch {
             roomErrorMessage = error.localizedDescription
         }
+    }
+
+    private var unfriendedBottomBar: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "person.crop.circle.badge.exclamationmark")
+                .font(.title3)
+                .foregroundStyle(.secondary)
+
+            Text("Hai bạn hiện không còn là bạn bè. Hãy kết bạn lại để tiếp tục gửi tin nhắn.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if conversation.friendshipStatus?.uppercased() == "PENDING" {
+                Text("Đã gửi lời mời")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.chatBLNPrimary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.chatBLNPrimary.opacity(0.12), in: Capsule())
+            } else if let targetId = conversation.targetUserId {
+                Button {
+                    Task {
+                        do {
+                            try await chatStore.sendFriendRequest(to: targetId)
+                        } catch {
+                            roomErrorMessage = error.localizedDescription
+                        }
+                    }
+                } label: {
+                    Label("Kết bạn lại", systemImage: "person.badge.plus")
+                        .font(.footnote.weight(.semibold))
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .tint(.chatBLNPrimary)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color(.systemBackground))
     }
 
     private var composerBar: some View {
