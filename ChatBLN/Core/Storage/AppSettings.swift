@@ -58,7 +58,8 @@ struct CachedSessionUser: Codable, Hashable, Sendable {
 @MainActor
 @Observable
 final class AppSettings {
-    static let defaultBaseURL = "http://127.0.0.1:8088"
+    static let defaultBaseURL = "https://chat-bln.fishu.io.vn"
+    static let simulatorBaseURL = "http://127.0.0.1:8088"
 
     private enum Keys {
         static let baseURL = "chatbln.server.base_url"
@@ -147,7 +148,7 @@ final class AppSettings {
             return nil
         }
 
-        if raw.lowercased().hasPrefix("http://") || raw.lowercased().hasPrefix("https://") {
+        if raw.lowercased().hasPrefix("http://") || raw.lowercased().hasPrefix("https://") || raw.lowercased().hasPrefix("data:") {
             return URL(string: raw)
         }
 
@@ -161,7 +162,8 @@ final class AppSettings {
             return defaultBaseURL
         }
         if !trimmed.lowercased().hasPrefix("http://") && !trimmed.lowercased().hasPrefix("https://") {
-            trimmed = "http://\(trimmed)"
+            let scheme = shouldDefaultToCleartextHTTP(trimmed) ? "http" : "https"
+            trimmed = "\(scheme)://\(trimmed)"
         }
         while trimmed.hasSuffix("/") {
             trimmed.removeLast()
@@ -169,7 +171,29 @@ final class AppSettings {
         if trimmed.lowercased().hasSuffix("/api") {
             trimmed = String(trimmed.dropLast(4))
         }
+        // Tự động nâng cấp http -> https cho domain Cloudflare để không bị mất body POST do redirect 301
+        if trimmed.lowercased() == "http://chat-bln.fishu.io.vn" {
+            trimmed = "https://chat-bln.fishu.io.vn"
+        }
         return trimmed
+    }
+
+    private static func shouldDefaultToCleartextHTTP(_ rawHostPort: String) -> Bool {
+        let hostAndPort = rawHostPort.split(separator: "/").first.map(String.init) ?? rawHostPort
+        let lower = hostAndPort.lowercased()
+        if lower.contains(":8088") || lower.contains(":8080") || lower.contains(":4200") {
+            return true
+        }
+        let hostOnly = lower.split(separator: ":").first.map(String.init) ?? lower
+        if hostOnly == "localhost" || hostOnly.hasSuffix(".local") {
+            return true
+        }
+        let octets = hostOnly.split(separator: ".").compactMap { Int($0) }
+        if octets.count == 4 {
+            // IPv4 (127.x, 10.x, 192.168.x, 172.16-31.x, 100.x Tailscale...) mặc định http nếu không ghi rõ https
+            return true
+        }
+        return false
     }
 }
 

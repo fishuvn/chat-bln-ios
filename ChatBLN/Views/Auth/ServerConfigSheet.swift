@@ -15,7 +15,7 @@ struct ServerConfigSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("http://127.0.0.1:8088", text: $urlInput)
+                    TextField("https://chat-bln.fishu.io.vn", text: $urlInput)
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -24,12 +24,18 @@ struct ServerConfigSheet: View {
                     Button {
                         urlInput = AppSettings.defaultBaseURL
                     } label: {
-                        Label("Đặt lại mặc định Simulator (127.0.0.1:8088)", systemImage: "arrow.counterclockwise")
+                        Label("Máy chủ Production (chat-bln.fishu.io.vn)", systemImage: "globe.asia.australia.fill")
+                    }
+
+                    Button {
+                        urlInput = AppSettings.simulatorBaseURL
+                    } label: {
+                        Label("Máy ảo Simulator (127.0.0.1:8088)", systemImage: "laptopcomputer.and.iphone")
                     }
                 } header: {
-                    Text("Địa chỉ Backend Spring Boot")
+                    Text("Địa chỉ Máy chủ Backend")
                 } footer: {
-                    Text("Trên iOS Simulator dùng http://127.0.0.1:8088. Trên iPhone thật cùng Wi-Fi, nhập IP LAN của máy tính (ví dụ http://192.168.1.10:8088).")
+                    Text("Mặc định kết nối HTTPS qua https://chat-bln.fishu.io.vn. Khi chạy nội bộ có thể chọn Simulator (127.0.0.1:8088) hoặc nhập IP LAN (http://192.168.1.10:8088).")
                 }
 
                 Section("Kiểm tra trạng thái máy chủ") {
