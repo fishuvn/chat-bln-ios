@@ -6,6 +6,8 @@ struct MessageBubbleView: View {
     let message: MessageDto
     let isOutgoing: Bool
     let settings: AppSettings
+    var showSenderHeader: Bool = true
+    var isLastInSenderGroup: Bool = true
     var isSelectionMode: Bool = false
     var isSelected: Bool = false
     var onToggleSelect: (() -> Void)? = nil
@@ -55,6 +57,28 @@ struct MessageBubbleView: View {
         return true
     }
 
+    private var bubbleShape: UnevenRoundedRectangle {
+        let std: CGFloat = 16
+        let tail: CGFloat = isLastInSenderGroup ? 4 : 16
+        if isOutgoing {
+            return UnevenRoundedRectangle(
+                topLeadingRadius: std,
+                bottomLeadingRadius: std,
+                bottomTrailingRadius: tail,
+                topTrailingRadius: std,
+                style: .continuous
+            )
+        } else {
+            return UnevenRoundedRectangle(
+                topLeadingRadius: std,
+                bottomLeadingRadius: tail,
+                bottomTrailingRadius: std,
+                topTrailingRadius: std,
+                style: .continuous
+            )
+        }
+    }
+
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
             if isSelectionMode {
@@ -64,25 +88,33 @@ struct MessageBubbleView: View {
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                         .font(.title3)
                         .foregroundStyle(isSelected ? Color.chatBLNPrimary : .secondary)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(isSelected ? "Bỏ chọn tin nhắn" : "Chọn tin nhắn")
             }
 
             HStack(alignment: .bottom, spacing: 8) {
                 if isOutgoing {
-                    Spacer(minLength: 40)
-                } else {
+                    Spacer(minLength: 44)
+                } else if isLastInSenderGroup {
                     AvatarView(
                         name: message.sender.displayName,
                         avatarURL: settings.resolveAssetURL(message.sender.avatarUrl),
-                        size: 30
+                        size: 28
                     )
+                    .accessibilityHidden(true)
+                } else {
+                    Color.clear
+                        .frame(width: 28, height: 28)
+                        .accessibilityHidden(true)
                 }
 
-                VStack(alignment: isOutgoing ? .trailing : .leading, spacing: 4) {
-                    if !isOutgoing {
+                VStack(alignment: isOutgoing ? .trailing : .leading, spacing: 3) {
+                    if !isOutgoing && showSenderHeader {
                         Text(message.sender.displayName)
-                            .font(.caption.weight(.semibold))
+                            .font(.caption.weight(.medium))
                             .foregroundStyle(.secondary)
                             .padding(.leading, 4)
                     }
@@ -104,7 +136,7 @@ struct MessageBubbleView: View {
                                 )
                             )
                             .font(.body)
-                            .foregroundStyle(isOutgoing ? Color.white : Color.primary)
+                            .foregroundStyle(isOutgoing ? Color.white : Color(.label))
                             .tint(isOutgoing ? Color.white : Color.chatBLNPrimary)
                             .fixedSize(horizontal: false, vertical: true)
                         }
@@ -119,8 +151,14 @@ struct MessageBubbleView: View {
                     .padding(.vertical, 9)
                     .background(
                         isOutgoing ? Color.chatBLNPrimary : Color(.secondarySystemGroupedBackground),
-                        in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        in: bubbleShape
                     )
+                    .overlay {
+                        if !isOutgoing {
+                            bubbleShape
+                                .strokeBorder(Color(.separator).opacity(0.35), lineWidth: 0.5)
+                        }
+                    }
                     .contextMenu {
                         Button {
                             UIPasteboard.general.string = message.content
@@ -132,7 +170,7 @@ struct MessageBubbleView: View {
                             Button {
                                 onOpenGroupInvite(inviteCode)
                             } label: {
-                                Label("Xem nhóm mời", systemImage: "person.3.fill")
+                                Label("Xem nhóm mời", systemImage: "person.2")
                             }
                         } else if let attachmentURL {
                             Button {
@@ -160,17 +198,19 @@ struct MessageBubbleView: View {
                         }
                     }
 
-                    let timeString = ChatDateFormatter.formatMessageTime(message.createdAt)
-                    if !timeString.isEmpty {
-                        Text(timeString)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 4)
+                    if isLastInSenderGroup {
+                        let timeString = ChatDateFormatter.formatMessageTime(message.createdAt)
+                        if !timeString.isEmpty {
+                            Text(timeString)
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 4)
+                        }
                     }
                 }
 
                 if !isOutgoing {
-                    Spacer(minLength: 40)
+                    Spacer(minLength: 44)
                 }
             }
             .allowsHitTesting(!isSelectionMode)
@@ -178,8 +218,8 @@ struct MessageBubbleView: View {
         .padding(.vertical, isSelectionMode ? 2 : 0)
         .padding(.horizontal, isSelectionMode ? 4 : 0)
         .background(
-            isSelected ? Color.chatBLNPrimary.opacity(0.11) : Color.clear,
-            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            isSelected ? Color.chatBLNPrimary.opacity(0.1) : Color.clear,
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
         )
         .contentShape(Rectangle())
         .onTapGesture {
@@ -194,47 +234,44 @@ struct MessageBubbleView: View {
             onOpenGroupInvite?(inviteCode)
         } label: {
             HStack(spacing: 10) {
-                ZStack {
-                    Circle()
-                        .fill(isOutgoing ? Color.white.opacity(0.22) : Color.chatBLNPrimary.opacity(0.14))
-                        .frame(width: 36, height: 36)
-                    Image(systemName: "person.3.fill")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(isOutgoing ? Color.white : Color.chatBLNPrimary)
-                }
+                Image(systemName: "person.2.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(isOutgoing ? Color.white : Color.chatBLNPrimary)
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Lời mời tham gia nhóm")
                         .font(.footnote.weight(.semibold))
-                        .foregroundStyle(isOutgoing ? Color.white : Color.primary)
+                        .foregroundStyle(isOutgoing ? Color.white : Color(.label))
                         .lineLimit(1)
 
-                    Text("Xem nhóm mời • \(inviteCode)")
-                        .font(.caption2)
-                        .foregroundStyle(isOutgoing ? Color.white.opacity(0.85) : Color.chatBLNPrimary)
+                    Text("Xem nhóm mời · \(inviteCode)")
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(isOutgoing ? Color.white.opacity(0.85) : Color(.secondaryLabel))
                         .lineLimit(1)
                 }
 
                 Spacer(minLength: 4)
 
-                Text("Xem nhóm mời")
-                    .font(.caption2.weight(.bold))
+                Text("Xem")
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(isOutgoing ? Color.chatBLNPrimary : Color.white)
-                    .padding(.horizontal, 9)
+                    .padding(.horizontal, 10)
                     .padding(.vertical, 5)
                     .background(
                         isOutgoing ? Color.white : Color.chatBLNPrimary,
                         in: Capsule()
                     )
             }
-            .padding(9)
-            .frame(maxWidth: 265)
+            .padding(10)
+            .frame(maxWidth: 265, minHeight: 44)
             .background(
-                isOutgoing ? Color.black.opacity(0.16) : Color(.tertiarySystemGroupedBackground),
+                isOutgoing ? Color.black.opacity(0.14) : Color(.tertiarySystemGroupedBackground),
                 in: RoundedRectangle(cornerRadius: 12, style: .continuous)
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Xem nhóm mời mã \(inviteCode)")
     }
 
     private func imageAttachmentView(url: URL) -> some View {
@@ -252,7 +289,7 @@ struct MessageBubbleView: View {
                 case .empty:
                     ZStack {
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(Color.black.opacity(0.08))
+                            .fill(Color(.tertiarySystemFill))
                             .frame(width: 210, height: 160)
                         ProgressView()
                     }
@@ -270,7 +307,7 @@ struct MessageBubbleView: View {
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Xem ảnh toàn màn hình")
+        .accessibilityLabel("Xem ảnh đính kèm toàn màn hình")
     }
 
     private func videoAttachmentView(url: URL) -> some View {
@@ -285,6 +322,7 @@ struct MessageBubbleView: View {
             .onDisappear {
                 videoPlayer?.pause()
             }
+            .accessibilityLabel("Trình phát video đính kèm")
     }
 
     private func fileAttachmentCard(url: URL) -> some View {
@@ -294,41 +332,44 @@ struct MessageBubbleView: View {
             HStack(spacing: 10) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(isOutgoing ? Color.white.opacity(0.2) : Color.chatBLNPrimary.opacity(0.12))
+                        .fill(isOutgoing ? Color.white.opacity(0.2) : Color(.tertiarySystemFill))
                         .frame(width: 40, height: 40)
-                    Image(systemName: "doc.text.fill")
-                        .font(.system(size: 18, weight: .semibold))
+                    Image(systemName: "doc.text")
+                        .font(.body.weight(.semibold))
                         .foregroundStyle(isOutgoing ? Color.white : Color.chatBLNPrimary)
                 }
+                .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(message.attachmentName ?? "Tệp đính kèm")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(isOutgoing ? Color.white : Color.primary)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(isOutgoing ? Color.white : Color(.label))
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
 
                     if let size = message.attachmentSize, !size.isEmpty {
                         Text(size)
-                            .font(.caption2)
-                            .foregroundStyle(isOutgoing ? Color.white.opacity(0.82) : Color.secondary)
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(isOutgoing ? Color.white.opacity(0.82) : Color(.secondaryLabel))
                     }
                 }
 
                 Spacer(minLength: 4)
 
-                Image(systemName: "arrow.up.right.square")
+                Image(systemName: "arrow.up.right")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(isOutgoing ? Color.white.opacity(0.9) : Color.secondary)
+                    .foregroundStyle(isOutgoing ? Color.white.opacity(0.9) : Color(.secondaryLabel))
+                    .accessibilityHidden(true)
             }
             .padding(10)
-            .frame(maxWidth: 250)
+            .frame(maxWidth: 250, minHeight: 44)
             .background(
                 isOutgoing ? Color.black.opacity(0.14) : Color(.tertiarySystemGroupedBackground),
                 in: RoundedRectangle(cornerRadius: 12, style: .continuous)
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Mở tệp đính kèm \(message.attachmentName ?? "")")
     }
 
     private func linkPreviewCard(link: ExtractedMessageLink) -> some View {
@@ -336,19 +377,20 @@ struct MessageBubbleView: View {
             openURL(link.url)
         } label: {
             HStack(spacing: 10) {
-                Image(systemName: "link.circle.fill")
-                    .font(.title3)
+                Image(systemName: "link")
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(isOutgoing ? Color.white : Color.chatBLNPrimary)
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(link.label)
                         .font(.footnote.weight(.semibold))
-                        .foregroundStyle(isOutgoing ? Color.white : Color.primary)
+                        .foregroundStyle(isOutgoing ? Color.white : Color(.label))
                         .lineLimit(1)
 
                     Text(link.host)
                         .font(.caption2)
-                        .foregroundStyle(isOutgoing ? Color.white.opacity(0.8) : Color.secondary)
+                        .foregroundStyle(isOutgoing ? Color.white.opacity(0.8) : Color(.secondaryLabel))
                         .lineLimit(1)
                 }
 
@@ -356,15 +398,17 @@ struct MessageBubbleView: View {
 
                 Image(systemName: "chevron.right")
                     .font(.caption2.weight(.bold))
-                    .foregroundStyle(isOutgoing ? Color.white.opacity(0.8) : Color.secondary)
+                    .foregroundStyle(isOutgoing ? Color.white.opacity(0.8) : Color(.secondaryLabel))
+                    .accessibilityHidden(true)
             }
-            .padding(9)
-            .frame(maxWidth: 250)
+            .padding(10)
+            .frame(maxWidth: 250, minHeight: 44)
             .background(
                 isOutgoing ? Color.black.opacity(0.14) : Color(.tertiarySystemGroupedBackground),
                 in: RoundedRectangle(cornerRadius: 11, style: .continuous)
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Mở liên kết \(link.label) trên \(link.host)")
     }
 }

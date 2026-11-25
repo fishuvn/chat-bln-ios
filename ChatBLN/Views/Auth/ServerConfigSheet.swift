@@ -24,13 +24,15 @@ struct ServerConfigSheet: View {
                     Button {
                         urlInput = AppSettings.defaultBaseURL
                     } label: {
-                        Label("Máy chủ Production (chat-bln.fishu.io.vn)", systemImage: "globe.asia.australia.fill")
+                        Label("Máy chủ Production (chat-bln.fishu.io.vn)", systemImage: "globe.asia.australia")
+                            .frame(minHeight: 36)
                     }
 
                     Button {
                         urlInput = AppSettings.simulatorBaseURL
                     } label: {
                         Label("Máy ảo Simulator (127.0.0.1:8088)", systemImage: "laptopcomputer.and.iphone")
+                            .frame(minHeight: 36)
                     }
                 } header: {
                     Text("Địa chỉ Máy chủ Backend")
@@ -45,12 +47,13 @@ struct ServerConfigSheet: View {
                         }
                     } label: {
                         HStack {
-                            Label("Kiểm tra kết nối (/api/health)", systemImage: "bolt.horizontal.circle.fill")
+                            Label("Kiểm tra kết nối (/api/health)", systemImage: "bolt.horizontal")
                             Spacer()
                             if isTestingConnection {
                                 ProgressView()
                             }
                         }
+                        .frame(minHeight: 36)
                     }
                     .disabled(isTestingConnection)
 
@@ -60,7 +63,7 @@ struct ServerConfigSheet: View {
                             systemImage: healthResultSuccess ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
                         )
                         .font(.footnote)
-                        .foregroundStyle(healthResultSuccess ? Color.green : Color.red)
+                        .foregroundStyle(healthResultSuccess ? Color(.systemGreen) : Color(.systemRed))
                     }
                 }
 

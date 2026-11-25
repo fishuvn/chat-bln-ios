@@ -289,6 +289,36 @@ struct AuthResponse: Codable, Hashable, Sendable {
     let tokenType: String?
 }
 
+struct ForgotPasswordRequestPayload: Codable, Hashable, Sendable {
+    let email: String
+}
+
+struct ForgotPasswordOtpResponse: Codable, Hashable, Sendable {
+    let email: String?
+    let username: String?
+    let fullName: String?
+    let otp: String?
+}
+
+struct VerifyPasswordOtpRequest: Codable, Hashable, Sendable {
+    let email: String
+    let otp: String
+}
+
+struct VerifyPasswordOtpResponse: Codable, Hashable, Sendable {
+    let verified: Bool?
+}
+
+struct ResetPasswordRequestPayload: Codable, Hashable, Sendable {
+    let email: String
+    let otp: String
+    let newPassword: String
+}
+
+struct ResetPasswordResponse: Codable, Hashable, Sendable {
+    let reset: Bool?
+}
+
 // MARK: - User Profile & Search DTOs
 
 struct UserProfileResponse: Codable, Identifiable, Hashable, Sendable {

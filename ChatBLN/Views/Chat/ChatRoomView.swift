@@ -14,6 +14,8 @@ private struct InvitePreviewSheetItem: Identifiable {
 }
 
 struct ChatRoomView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let conversationId: Int64
     let fallbackConversation: ConversationItemResponse
     @Bindable var settings: AppSettings
@@ -40,7 +42,6 @@ struct ChatRoomView: View {
     @State private var pendingDeleteMessageIds: [Int64] = []
     @State private var showDeleteMessageDialog: Bool = false
     @State private var isDeletingMessages: Bool = false
-    @FocusState private var isComposerFocused: Bool
 
     private var conversation: ConversationItemResponse {
         chatStore.conversation(for: conversationId) ?? fallbackConversation
@@ -84,22 +85,31 @@ struct ChatRoomView: View {
             if let roomErrorMessage {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color(.systemRed))
+                        .accessibilityHidden(true)
+
                     Text(roomErrorMessage)
-                        .font(.caption)
-                        .foregroundStyle(.red)
+                        .font(.footnote)
+                        .foregroundStyle(Color(.systemRed))
                         .lineLimit(2)
+
                     Spacer()
+
                     Button {
                         self.roomErrorMessage = nil
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(.secondary)
+                            .frame(width: 44, height: 44)
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Đóng thông báo lỗi")
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(Color.red.opacity(0.08))
+                .padding(.horizontal, 16)
+                .background(Color(.secondarySystemGroupedBackground))
+                .overlay(alignment: .bottom) {
+                    Divider()
+                }
             }
 
             messagesScrollArea
@@ -110,18 +120,32 @@ struct ChatRoomView: View {
                     }
                     return .systemAction
                 })
-
-            Divider()
-
-            if isSelectingMessages {
-                selectionBottomBar
-            } else if conversation.isUnfriendedPrivate {
-                unfriendedBottomBar
-            } else {
-                composerBar
-            }
         }
         .background(Color(.systemGroupedBackground))
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 0) {
+                Divider()
+                if isSelectingMessages {
+                    selectionBottomBar
+                } else if conversation.isUnfriendedPrivate {
+                    unfriendedBottomBar
+                } else {
+                    ChatComposerBar(
+                        draftText: $draftText,
+                        isUploadingAttachment: isUploadingAttachment,
+                        isSendingText: isSendingText,
+                        onPickPhoto: { showPhotoPicker = true },
+                        onPickVideo: { showVideoPicker = true },
+                        onPickFile: { showFileImporter = true },
+                        onOpenEmoji: { showEmojiSheet = true },
+                        onSend: {
+                            Task { await sendCurrentDraft() }
+                        }
+                    )
+                }
+            }
+            .background(.bar)
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
@@ -130,7 +154,7 @@ struct ChatRoomView: View {
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
-                    withAnimation(.snappy(duration: 0.2)) {
+                    toggleWithMotion {
                         isSelectingMessages.toggle()
                         if !isSelectingMessages {
                             selectedMessageIds.removeAll()
@@ -138,11 +162,12 @@ struct ChatRoomView: View {
                     }
                 } label: {
                     Image(systemName: isSelectingMessages ? "checkmark.circle.fill" : "checkmark.circle")
+                        .frame(minWidth: 44, minHeight: 44)
                 }
-                .accessibilityLabel("Chọn nhiều tin nhắn")
+                .accessibilityLabel(isSelectingMessages ? "Thoát chế độ chọn tin nhắn" : "Chọn nhiều tin nhắn")
 
                 Button {
-                    withAnimation(.snappy(duration: 0.2)) {
+                    toggleWithMotion {
                         isSearchBarVisible.toggle()
                         if !isSearchBarVisible {
                             inChatSearchQuery = ""
@@ -150,6 +175,7 @@ struct ChatRoomView: View {
                     }
                 } label: {
                     Image(systemName: isSearchBarVisible ? "magnifyingglass.circle.fill" : "magnifyingglass")
+                        .frame(minWidth: 44, minHeight: 44)
                 }
                 .accessibilityLabel("Tìm trong cuộc trò chuyện")
 
@@ -160,11 +186,12 @@ struct ChatRoomView: View {
                         Image(systemName: "info.circle")
                         if pendingJoinBadgeCount > 0 {
                             Circle()
-                                .fill(Color.orange)
+                                .fill(Color(.systemOrange))
                                 .frame(width: 8, height: 8)
                                 .offset(x: 3, y: -2)
                         }
                     }
+                    .frame(minWidth: 44, minHeight: 44)
                 }
                 .accessibilityLabel(
                     pendingJoinBadgeCount > 0
@@ -271,6 +298,16 @@ struct ChatRoomView: View {
 
     // MARK: - Subviews
 
+    private func toggleWithMotion(_ updates: () -> Void) {
+        if reduceMotion {
+            updates()
+        } else {
+            withAnimation(.snappy(duration: 0.2)) {
+                updates()
+            }
+        }
+    }
+
     private var headerTitleButton: some View {
         Button {
             showInfoSheet = true
@@ -291,21 +328,36 @@ struct ChatRoomView: View {
                         .foregroundStyle(.primary)
                         .lineLimit(1)
 
-                    Text(subtitleStatusText)
-                        .font(.caption2)
-                        .foregroundStyle(
-                            conversation.isGroup
-                                ? .secondary
-                                : ChatDateFormatter.presenceTintColor(
+                    HStack(spacing: 4) {
+                        Image(
+                            systemName: conversation.isGroup
+                                ? conversation.resolvedGroupVisibility.iconName
+                                : ChatDateFormatter.presenceSymbolName(
                                     isOnline: conversation.isOnline,
                                     presenceStatus: conversation.presenceStatus
                                 )
                         )
-                        .lineLimit(1)
+                        .font(.caption2)
+
+                        Text(subtitleStatusText)
+                            .font(.caption2)
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(
+                        conversation.isGroup
+                            ? .secondary
+                            : ChatDateFormatter.presenceTintColor(
+                                isOnline: conversation.isOnline,
+                                presenceStatus: conversation.presenceStatus
+                            )
+                    )
                 }
             }
+            .frame(minHeight: 44)
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Mở chi tiết cuộc trò chuyện")
     }
 
     private var subtitleStatusText: String {
@@ -314,7 +366,7 @@ struct ChatRoomView: View {
             let count = loadedCount ?? conversation.memberCount ?? 0
             let visibilityLabel = conversation.resolvedGroupVisibility.shortTitle
             if count > 0 {
-                return "\(visibilityLabel) • \(count) thành viên"
+                return "\(visibilityLabel) · \(count) thành viên"
             }
             return "Nhóm \(visibilityLabel.lowercased())"
         }
@@ -329,6 +381,7 @@ struct ChatRoomView: View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
 
             TextField("Tìm nội dung hoặc tên tệp...", text: $inChatSearchQuery)
                 .textInputAutocapitalization(.never)
@@ -340,18 +393,23 @@ struct ChatRoomView: View {
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.secondary)
+                        .frame(width: 44, height: 44)
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Xóa từ khoá tìm kiếm")
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.leading, 14)
+        .padding(.trailing, 6)
+        .padding(.vertical, 4)
         .background(Color(.systemBackground))
     }
 
     private var messagesScrollArea: some View {
-        ScrollViewReader { proxy in
+        let displayed = visibleMessages
+        return ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 12) {
+                LazyVStack(spacing: 0) {
                     if chatStore.hasMoreByConversation[conversationId] == true,
                        inChatSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Button {
@@ -364,43 +422,53 @@ struct ChatRoomView: View {
                                     ProgressView()
                                         .controlSize(.small)
                                 } else {
-                                    Image(systemName: "arrow.up.circle")
+                                    Image(systemName: "arrow.up")
                                 }
                                 Text("Tải tin nhắn cũ hơn")
                                     .font(.footnote.weight(.medium))
                             }
                             .padding(.horizontal, 14)
-                            .padding(.vertical, 7)
+                            .frame(minHeight: 36)
                             .background(Color(.secondarySystemGroupedBackground), in: Capsule())
+                            .overlay(
+                                Capsule()
+                                    .strokeBorder(Color(.separator).opacity(0.4), lineWidth: 0.5)
+                            )
                         }
-                        .padding(.top, 4)
+                        .padding(.bottom, 12)
                     }
 
                     if chatStore.loadingMessagesConversationIds.contains(conversationId) && allMessages.isEmpty {
-                        ProgressView("Đang tải lịch sử tin nhắn...")
-                            .padding(.top, 48)
-                    } else if visibleMessages.isEmpty {
+                        skeletonMessagesPlaceholder
+                    } else if displayed.isEmpty {
                         ContentUnavailableView(
                             isSearchBarVisible && !inChatSearchQuery.isEmpty
                                 ? "Không khớp tin nhắn nào"
                                 : "Chưa có tin nhắn",
                             systemImage: isSearchBarVisible && !inChatSearchQuery.isEmpty
                                 ? "magnifyingglass"
-                                : "hand.wave.fill",
+                                : "bubble.left",
                             description: Text(
                                 isSearchBarVisible && !inChatSearchQuery.isEmpty
                                     ? "Thử từ khoá khác trong cuộc trò chuyện."
-                                    : "Hãy gửi lời chào đầu tiên hoặc chia sẻ ảnh, video, tài liệu."
+                                    : "Gửi tin nhắn đầu tiên hoặc chia sẻ ảnh, video, tài liệu."
                             )
                         )
                         .padding(.top, 48)
                     } else {
-                        ForEach(visibleMessages) { msg in
+                        ForEach(Array(displayed.enumerated()), id: \.element.id) { index, msg in
                             let isOutgoing = msg.sender.username.lowercased() == chatStore.currentUsername.lowercased()
+                            let prevSameSender = index > 0 &&
+                                displayed[index - 1].sender.username.lowercased() == msg.sender.username.lowercased()
+                            let nextSameSender = (index + 1) < displayed.count &&
+                                displayed[index + 1].sender.username.lowercased() == msg.sender.username.lowercased()
+
                             MessageBubbleView(
                                 message: msg,
                                 isOutgoing: isOutgoing,
                                 settings: settings,
+                                showSenderHeader: !prevSameSender,
+                                isLastInSenderGroup: !nextSameSender,
                                 isSelectionMode: isSelectingMessages,
                                 isSelected: selectedMessageIds.contains(msg.id),
                                 onToggleSelect: {
@@ -411,7 +479,7 @@ struct ChatRoomView: View {
                                     }
                                 },
                                 onStartMultiSelect: {
-                                    withAnimation(.snappy(duration: 0.2)) {
+                                    toggleWithMotion {
                                         isSelectingMessages = true
                                         selectedMessageIds.insert(msg.id)
                                     }
@@ -427,27 +495,56 @@ struct ChatRoomView: View {
                                     invitePreviewSheetItem = InvitePreviewSheetItem(code: code)
                                 }
                             )
+                            .padding(.top, prevSameSender ? 3 : 10)
                             .id(msg.id)
                         }
                     }
 
                     Color.clear
-                        .frame(height: 2)
+                        .frame(height: 4)
                         .id("CHAT_BOTTOM_ANCHOR")
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 12)
+                .padding(.vertical, 10)
             }
             .scrollDismissesKeyboard(.interactively)
             .onChange(of: allMessages.last?.id) { _, _ in
-                withAnimation(.easeOut(duration: 0.22)) {
+                if reduceMotion {
                     proxy.scrollTo("CHAT_BOTTOM_ANCHOR", anchor: .bottom)
+                } else {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        proxy.scrollTo("CHAT_BOTTOM_ANCHOR", anchor: .bottom)
+                    }
                 }
             }
             .onAppear {
                 proxy.scrollTo("CHAT_BOTTOM_ANCHOR", anchor: .bottom)
             }
         }
+    }
+
+    private var skeletonMessagesPlaceholder: some View {
+        VStack(spacing: 14) {
+            ForEach(0..<4, id: \.self) { idx in
+                HStack {
+                    if idx.isMultiple(of: 2) {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color(.secondarySystemGroupedBackground))
+                            .frame(width: 210, height: 46)
+                        Spacer()
+                    } else {
+                        Spacer()
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color(.tertiarySystemFill))
+                            .frame(width: 190, height: 46)
+                    }
+                }
+            }
+        }
+        .padding(.top, 16)
+        .redacted(reason: .placeholder)
+        .allowsHitTesting(false)
+        .accessibilityLabel("Đang tải lịch sử tin nhắn")
     }
 
     private var canDeletePendingForEveryone: Bool {
@@ -478,12 +575,13 @@ struct ChatRoomView: View {
                         : "Chọn tất cả"
                 )
                 .font(.subheadline.weight(.semibold))
+                .frame(minHeight: 44)
             }
 
             Spacer()
 
             Text("Đã chọn \(selectedMessageIds.count)")
-                .font(.subheadline.weight(.medium))
+                .font(.subheadline.monospacedDigit())
                 .foregroundStyle(.secondary)
 
             Spacer()
@@ -497,27 +595,28 @@ struct ChatRoomView: View {
                         ProgressView()
                             .controlSize(.small)
                     } else {
-                        Image(systemName: "trash.fill")
+                        Image(systemName: "trash")
                     }
                     Text("Xóa (\(selectedMessageIds.count))")
-                        .fontWeight(.semibold)
+                        .font(.subheadline.weight(.semibold).monospacedDigit())
                 }
+                .frame(minHeight: 36)
             }
             .buttonStyle(.borderedProminent)
-            .tint(.red)
+            .tint(Color(.systemRed))
             .disabled(selectedMessageIds.isEmpty || isDeletingMessages)
 
             Button("Xong") {
-                withAnimation(.snappy(duration: 0.2)) {
+                toggleWithMotion {
                     isSelectingMessages = false
                     selectedMessageIds.removeAll()
                 }
             }
             .font(.subheadline.weight(.semibold))
+            .frame(minHeight: 44)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(Color(.systemBackground))
+        .padding(.vertical, 6)
     }
 
     private func executeDeleteMessages(mode: String) async {
@@ -546,19 +645,20 @@ struct ChatRoomView: View {
             Image(systemName: "person.crop.circle.badge.exclamationmark")
                 .font(.title3)
                 .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
 
-            Text("Hai bạn hiện không còn là bạn bè. Hãy kết bạn lại để tiếp tục gửi tin nhắn.")
+            Text("Hai bạn hiện không còn là bạn bè. Kết bạn lại để tiếp tục gửi tin nhắn.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if conversation.friendshipStatus?.uppercased() == "PENDING" {
-                Text("Đã gửi lời mời")
+                Label("Đã gửi", systemImage: "clock")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.chatBLNPrimary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(Color.chatBLNPrimary.opacity(0.12), in: Capsule())
+                    .background(Color(.tertiarySystemFill), in: Capsule())
             } else if let targetId = conversation.targetUserId {
                 Button {
                     Task {
@@ -571,6 +671,7 @@ struct ChatRoomView: View {
                 } label: {
                     Label("Kết bạn lại", systemImage: "person.badge.plus")
                         .font(.footnote.weight(.semibold))
+                        .frame(minHeight: 36)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
@@ -578,101 +679,7 @@ struct ChatRoomView: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(Color(.systemBackground))
-    }
-
-    private var composerBar: some View {
-        VStack(spacing: 6) {
-            if isUploadingAttachment {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Đang tải tệp đính kèm lên máy chủ...")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 6)
-            }
-
-            HStack(alignment: .bottom, spacing: 8) {
-                attachmentMenuButton
-
-                Button {
-                    isComposerFocused = false
-                    showEmojiSheet = true
-                } label: {
-                    Image(systemName: "face.smiling")
-                        .font(.system(size: 22))
-                        .foregroundStyle(Color.chatBLNPrimary)
-                        .frame(width: 40, height: 40)
-                }
-                .accessibilityLabel("Mở bảng biểu tượng cảm xúc")
-
-                TextField("Nhập tin nhắn hoặc [Nhãn](https://...)", text: $draftText, axis: .vertical)
-                    .lineLimit(1...5)
-                    .focused($isComposerFocused)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 9)
-                    .background(
-                        Color(.secondarySystemGroupedBackground),
-                        in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    )
-
-                Button {
-                    Task {
-                        await sendCurrentDraft()
-                    }
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 32))
-                        .foregroundStyle(canSendDraft ? Color.chatBLNPrimary : Color(.systemGray3))
-                        .frame(width: 40, height: 40)
-                }
-                .disabled(!canSendDraft)
-                .accessibilityLabel("Gửi tin nhắn")
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(Color(.systemBackground))
-        }
-    }
-
-    private var attachmentMenuButton: some View {
-        Menu {
-            Button {
-                showPhotoPicker = true
-            } label: {
-                Label("Chọn gửi ảnh", systemImage: "photo.on.rectangle")
-            }
-
-            Button {
-                showVideoPicker = true
-            } label: {
-                Label("Chọn gửi video", systemImage: "video.fill")
-            }
-
-            Divider()
-
-            Button {
-                showFileImporter = true
-            } label: {
-                Label("Đính kèm tệp", systemImage: "paperclip")
-            }
-        } label: {
-            Image(systemName: "plus.circle.fill")
-                .font(.system(size: 26))
-                .foregroundStyle(Color.chatBLNPrimary)
-                .frame(width: 40, height: 40)
-        }
-        .disabled(isUploadingAttachment)
-        .accessibilityLabel("Menu đính kèm ảnh, video hoặc tệp")
-    }
-
-    private var canSendDraft: Bool {
-        !isSendingText && !draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        .padding(.vertical, 10)
     }
 
     // MARK: - Actions
@@ -717,7 +724,6 @@ struct ChatRoomView: View {
             var mimeType = contentType?.preferredMIMEType ?? fallbackMime
             var ext = (contentType?.preferredFilenameExtension ?? fallbackExtension).lowercased()
 
-            // Chuyển đổi ảnh HEIC/HEIF sang JPEG để mọi trình duyệt Web & Android đều xem trực tiếp được
             if ext == "heic" || ext == "heif" || mimeType.contains("heic") || mimeType.contains("heif") {
                 if let uiImage = UIImage(data: data),
                    let jpegData = uiImage.jpegData(compressionQuality: 0.85) {
@@ -782,8 +788,104 @@ struct ChatRoomView: View {
     }
 }
 
+private struct ChatComposerBar: View {
+    @Binding var draftText: String
+    let isUploadingAttachment: Bool
+    let isSendingText: Bool
+    let onPickPhoto: () -> Void
+    let onPickVideo: () -> Void
+    let onPickFile: () -> Void
+    let onOpenEmoji: () -> Void
+    let onSend: () -> Void
+
+    @FocusState private var isFocused: Bool
+
+    private var canSend: Bool {
+        !isSendingText && !draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        VStack(spacing: 4) {
+            if isUploadingAttachment {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Đang tải tệp đính kèm lên máy chủ...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 6)
+            }
+
+            HStack(alignment: .bottom, spacing: 4) {
+                Menu {
+                    Button(action: onPickPhoto) {
+                        Label("Chọn gửi ảnh", systemImage: "photo")
+                    }
+                    Button(action: onPickVideo) {
+                        Label("Chọn gửi video", systemImage: "video")
+                    }
+                    Divider()
+                    Button(action: onPickFile) {
+                        Label("Đính kèm tệp", systemImage: "paperclip")
+                    }
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(Color.chatBLNPrimary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .disabled(isUploadingAttachment)
+                .accessibilityLabel("Đính kèm ảnh, video hoặc tệp")
+
+                Button {
+                    isFocused = false
+                    onOpenEmoji()
+                } label: {
+                    Image(systemName: "face.smiling")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Chèn biểu tượng cảm xúc")
+
+                TextField("Tin nhắn", text: $draftText, axis: .vertical)
+                    .font(.body)
+                    .lineLimit(1...5)
+                    .focused($isFocused)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 9)
+                    .background(
+                        Color(.tertiarySystemFill),
+                        in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    )
+
+                Button(action: onSend) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(canSend ? Color.chatBLNPrimary : Color(.tertiaryLabel))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(!canSend)
+                .accessibilityLabel("Gửi tin nhắn")
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+        }
+    }
+}
+
 private struct FullScreenImageViewer: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let imageURL: URL
     @State private var zoomScale: CGFloat = 1.0
 
@@ -805,16 +907,25 @@ private struct FullScreenImageViewer: View {
                                         zoomScale = min(max(value.magnification, 1.0), 4.0)
                                     }
                                     .onEnded { _ in
-                                        withAnimation(.spring(duration: 0.25)) {
-                                            if zoomScale < 1.05 {
+                                        if zoomScale < 1.05 {
+                                            if reduceMotion {
                                                 zoomScale = 1.0
+                                            } else {
+                                                withAnimation(.spring(duration: 0.22)) {
+                                                    zoomScale = 1.0
+                                                }
                                             }
                                         }
                                     }
                             )
                             .onTapGesture(count: 2) {
-                                withAnimation(.spring(duration: 0.25)) {
-                                    zoomScale = zoomScale > 1.0 ? 1.0 : 2.2
+                                let target: CGFloat = zoomScale > 1.0 ? 1.0 : 2.2
+                                if reduceMotion {
+                                    zoomScale = target
+                                } else {
+                                    withAnimation(.spring(duration: 0.22)) {
+                                        zoomScale = target
+                                    }
                                 }
                             }
                     case .empty:
@@ -836,6 +947,7 @@ private struct FullScreenImageViewer: View {
                         Image(systemName: "xmark.circle.fill")
                             .font(.title2)
                             .foregroundStyle(.white.opacity(0.9))
+                            .frame(width: 44, height: 44)
                     }
                     .accessibilityLabel("Đóng trình xem ảnh")
                 }

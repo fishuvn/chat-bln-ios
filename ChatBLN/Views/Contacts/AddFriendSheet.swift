@@ -24,27 +24,47 @@ struct AddFriendSheet: View {
                 if let statusBanner {
                     HStack(spacing: 8) {
                         Image(systemName: isBannerError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-                            .foregroundStyle(isBannerError ? Color.red : Color.green)
+                            .foregroundStyle(isBannerError ? Color(.systemRed) : Color(.systemGreen))
+                            .accessibilityHidden(true)
+
                         Text(statusBanner)
                             .font(.footnote)
-                            .foregroundStyle(isBannerError ? Color.red : Color.primary)
+                            .foregroundStyle(isBannerError ? Color(.systemRed) : .primary)
+
                         Spacer()
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background((isBannerError ? Color.red : Color.green).opacity(0.1))
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .overlay(alignment: .bottom) {
+                        Divider()
+                    }
                 }
 
-                // Ẩn hoàn toàn danh sách người dùng hệ thống cho tới khi nhập từ khoá tìm kiếm
                 if trimmedKeyword.isEmpty {
                     ContentUnavailableView(
                         "Tìm bạn bè trên Chat BLN",
-                        systemImage: "magnifyingglass.circle",
+                        systemImage: "magnifyingglass",
                         description: Text("Nhập tên hiển thị hoặc @username vào ô tìm kiếm phía trên để tra cứu người dùng.")
                     )
                 } else if isSearching && results.isEmpty {
-                    ProgressView("Đang tìm kiếm người dùng...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    List(0..<3, id: \.self) { _ in
+                        HStack(spacing: 12) {
+                            Circle()
+                                .fill(Color(.tertiarySystemFill))
+                                .frame(width: 44, height: 44)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Người dùng Chat BLN")
+                                    .font(.body.weight(.medium))
+                                Text("@username")
+                                    .font(.caption)
+                            }
+                        }
+                        .redacted(reason: .placeholder)
+                    }
+                    .listStyle(.insetGrouped)
+                    .allowsHitTesting(false)
+                    .accessibilityLabel("Đang tìm kiếm người dùng")
                 } else if results.isEmpty {
                     ContentUnavailableView.search(text: searchKeyword)
                 } else {
@@ -54,6 +74,7 @@ struct AddFriendSheet: View {
                     .listStyle(.insetGrouped)
                 }
             }
+            .background(Color(.systemGroupedBackground))
             .searchable(
                 text: $searchKeyword,
                 placement: .navigationBarDrawer(displayMode: .always),
@@ -71,7 +92,7 @@ struct AddFriendSheet: View {
                     return
                 }
                 isSearching = true
-                try? await Task.sleep(for: .milliseconds(320))
+                try? await Task.sleep(for: .milliseconds(300))
                 guard !Task.isCancelled else { return }
                 await executeSearch(for: trimmedKeyword)
             }
@@ -110,14 +131,14 @@ struct AddFriendSheet: View {
             AvatarView(
                 name: user.displayName,
                 avatarURL: settings.resolveAssetURL(user.avatarUrl),
-                size: 46,
+                size: 44,
                 isOnline: user.isOnline ?? false,
                 presenceStatus: user.presenceStatus
             )
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(user.displayName)
-                    .font(.body.weight(.semibold))
+                    .font(.body.weight(.medium))
                     .lineLimit(1)
 
                 Text("@\(user.username)")
@@ -152,14 +173,15 @@ struct AddFriendSheet: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
+                    .frame(minHeight: 36)
                     .disabled(isBusy)
                 } else {
-                    Text("Đã gửi")
+                    Label("Đã gửi", systemImage: "clock")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.chatBLNPrimary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(Color.chatBLNPrimary.opacity(0.12), in: Capsule())
+                        .background(Color(.tertiarySystemFill), in: Capsule())
                 }
 
             case .receivedPending(let friendshipId):
@@ -171,6 +193,7 @@ struct AddFriendSheet: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .tint(.chatBLNPrimary)
+                .frame(minHeight: 36)
                 .disabled(isBusy)
 
             case .none:
@@ -189,6 +212,7 @@ struct AddFriendSheet: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .tint(.chatBLNPrimary)
+                .frame(minHeight: 36)
                 .disabled(isBusy)
             }
         }
@@ -239,7 +263,7 @@ struct AddFriendSheet: View {
                 results[idx].friendshipStatus = "ACCEPTED"
             }
             isBannerError = false
-            statusBanner = "Bạn và \(user.displayName) đã trở thành bạn bè!"
+            statusBanner = "Bạn và \(user.displayName) đã trở thành bạn bè."
         } catch {
             isBannerError = true
             statusBanner = error.localizedDescription

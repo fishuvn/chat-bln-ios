@@ -4,6 +4,8 @@ import UIKit
 import UniformTypeIdentifiers
 
 struct ProfileView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @Bindable var settings: AppSettings
     @Bindable var authViewModel: AuthViewModel
     @Bindable var chatStore: ChatStoreViewModel
@@ -38,7 +40,7 @@ struct ProfileView: View {
                             systemImage: isStatusError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill"
                         )
                         .font(.footnote)
-                        .foregroundStyle(isStatusError ? Color.red : Color.green)
+                        .foregroundStyle(isStatusError ? Color(.systemRed) : Color(.systemGreen))
                     }
                 }
 
@@ -67,7 +69,10 @@ struct ProfileView: View {
                         }
                     }
 
-                    Toggle("Hiển thị ngày sinh", isOn: $hasDob.animation())
+                    Toggle(
+                        "Hiển thị ngày sinh",
+                        isOn: reduceMotion ? $hasDob : $hasDob.animation(.snappy(duration: 0.2))
+                    )
                     if hasDob {
                         DatePicker(
                             "Ngày sinh",
@@ -91,18 +96,18 @@ struct ProfileView: View {
                             await saveProfileChanges()
                         }
                     } label: {
-                        HStack {
+                        HStack(spacing: 8) {
                             Spacer()
                             if isSavingProfile {
                                 ProgressView()
-                                    .padding(.trailing, 8)
                             }
                             Text(isSavingProfile ? "Đang lưu..." : "Lưu thay đổi hồ sơ")
                                 .font(.body.weight(.semibold))
                             Spacer()
                         }
+                        .frame(minHeight: 44)
                     }
-                    .disabled(isSavingProfile || fullName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(isSavingProfile)
                 }
 
                 Section("Trạng thái & Giao diện") {
@@ -145,6 +150,7 @@ struct ProfileView: View {
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.tertiary)
                         }
+                        .frame(minHeight: 36)
                     }
                 }
 
@@ -158,6 +164,7 @@ struct ProfileView: View {
                                 .font(.body.weight(.semibold))
                             Spacer()
                         }
+                        .frame(minHeight: 44)
                     }
                 }
             }
@@ -171,9 +178,6 @@ struct ProfileView: View {
             }
             .onChange(of: authViewModel.currentProfile?.id) { _, _ in
                 loadFieldsFromProfile()
-            }
-            .onChange(of: authViewModel.currentProfile?.avatarUrl) { _, _ in
-                // Đồng bộ lại ảnh đại diện mới nhất
             }
             .onChange(of: selectedAvatarItem) { _, newItem in
                 guard let newItem else { return }
@@ -215,24 +219,24 @@ struct ProfileView: View {
     private var avatarHeaderSection: some View {
         Section {
             VStack(spacing: 12) {
-                ZStack(alignment: .bottomTrailing) {
-                    AvatarView(
-                        name: fullName.isEmpty ? (authViewModel.currentProfile?.displayName ?? "U") : fullName,
-                        avatarURL: settings.resolveAssetURL(authViewModel.currentProfile?.avatarUrl),
-                        size: 92,
-                        isOnline: settings.presenceMode != .offline,
-                        presenceStatus: settings.presenceMode.rawValue
-                    )
+                PhotosPicker(
+                    selection: $selectedAvatarItem,
+                    matching: .images,
+                    photoLibrary: .shared()
+                ) {
+                    ZStack(alignment: .bottomTrailing) {
+                        AvatarView(
+                            name: fullName.isEmpty ? (authViewModel.currentProfile?.displayName ?? "U") : fullName,
+                            avatarURL: settings.resolveAssetURL(authViewModel.currentProfile?.avatarUrl),
+                            size: 88,
+                            isOnline: settings.presenceMode != .offline,
+                            presenceStatus: settings.presenceMode.rawValue
+                        )
 
-                    PhotosPicker(
-                        selection: $selectedAvatarItem,
-                        matching: .images,
-                        photoLibrary: .shared()
-                    ) {
                         ZStack {
                             Circle()
                                 .fill(Color.chatBLNPrimary)
-                                .frame(width: 32, height: 32)
+                                .frame(width: 30, height: 30)
                             if isUploadingAvatar {
                                 ProgressView()
                                     .controlSize(.mini)
@@ -245,12 +249,14 @@ struct ProfileView: View {
                         }
                         .overlay(
                             Circle()
-                                .stroke(Color(.systemBackground), lineWidth: 2)
+                                .stroke(Color(.systemGroupedBackground), lineWidth: 2)
                         )
                     }
-                    .disabled(isUploadingAvatar)
-                    .accessibilityLabel("Đổi ảnh đại diện")
+                    .frame(minWidth: 96, minHeight: 96)
                 }
+                .buttonStyle(.plain)
+                .disabled(isUploadingAvatar)
+                .accessibilityLabel("Đổi ảnh đại diện")
 
                 VStack(spacing: 6) {
                     Text(authViewModel.currentProfile?.displayName ?? settings.cachedUser?.fullName ?? "Người dùng")
@@ -265,26 +271,34 @@ struct ProfileView: View {
                             } label: {
                                 Label(
                                     mode.title,
-                                    systemImage: settings.presenceMode == mode ? "checkmark.circle.fill" : mode.iconName
+                                    systemImage: settings.presenceMode == mode ? "checkmark" : mode.iconName
                                 )
                             }
                         }
                     } label: {
                         HStack(spacing: 6) {
-                            Circle()
-                                .fill(settings.presenceMode.dotColor)
-                                .frame(width: 9, height: 9)
+                            Image(systemName: settings.presenceMode.iconName)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(settings.presenceMode.dotColor)
+
                             Text(settings.presenceMode.title)
                                 .font(.subheadline.weight(.medium))
                                 .foregroundStyle(.primary)
+
                             Image(systemName: "chevron.up.chevron.down")
                                 .font(.caption2.weight(.bold))
                                 .foregroundStyle(.secondary)
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 36)
                         .background(Color(.secondarySystemGroupedBackground), in: Capsule())
+                        .overlay(
+                            Capsule()
+                                .strokeBorder(Color(.separator).opacity(0.35), lineWidth: 0.5)
+                        )
                     }
+                    .accessibilityLabel("Trạng thái hoạt động")
+                    .accessibilityValue(settings.presenceMode.title)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -315,6 +329,13 @@ struct ProfileView: View {
     }
 
     private func saveProfileChanges() async {
+        let cleanFullName = fullName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanFullName.isEmpty else {
+            isStatusError = true
+            statusMessage = "Họ và tên hiển thị không được để trống."
+            return
+        }
+
         isSavingProfile = true
         statusMessage = nil
 
@@ -329,7 +350,7 @@ struct ProfileView: View {
         }
 
         let payload = UpdateProfileRequest(
-            fullName: fullName.trimmedNilIfEmpty,
+            fullName: cleanFullName,
             email: email.trimmedNilIfEmpty,
             phone: phone.trimmedNilIfEmpty,
             gender: gender,
@@ -365,7 +386,6 @@ struct ProfileView: View {
             var mime = utType?.preferredMIMEType ?? "image/jpeg"
             var ext = (utType?.preferredFilenameExtension ?? "jpg").lowercased()
 
-            // Chuẩn hóa ảnh HEIC/HEIF/TIFF sang JPEG để hiển thị đồng bộ trên Web & Android
             if ext == "heic" || ext == "heif" || ext == "tiff" || mime.contains("heic") || mime.contains("heif") {
                 if let uiImage = UIImage(data: data),
                    let jpegData = uiImage.jpegData(compressionQuality: 0.85) {

@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import SwiftUI
+import UIKit
 
 enum UserPresenceMode: String, CaseIterable, Identifiable, Codable, Sendable {
     case online = "ONLINE"
@@ -33,21 +34,6 @@ enum UserPresenceMode: String, CaseIterable, Identifiable, Codable, Sendable {
     var title: String {
         switch self {
         case .online:
-            return "Trực tuyến (Online)"
-        case .idle:
-            return "Tạm vắng (Idle)"
-        case .sleep:
-            return "Chế độ ngủ (Sleep)"
-        case .dnd:
-            return "Không làm phiền (DND)"
-        case .offline:
-            return "Ẩn trạng thái (Offline)"
-        }
-    }
-
-    var shortTitle: String {
-        switch self {
-        case .online:
             return "Trực tuyến"
         case .idle:
             return "Tạm vắng"
@@ -60,6 +46,10 @@ enum UserPresenceMode: String, CaseIterable, Identifiable, Codable, Sendable {
         }
     }
 
+    var shortTitle: String {
+        title
+    }
+
     var subtitle: String {
         switch self {
         case .online:
@@ -67,9 +57,9 @@ enum UserPresenceMode: String, CaseIterable, Identifiable, Codable, Sendable {
         case .idle:
             return "Tạm rời máy, vẫn nhận tin nhắn mới"
         case .sleep:
-            return "Đang nghỉ ngơi, hiển thị biểu tượng ngủ cho bạn bè"
+            return "Đang nghỉ ngơi, tạm hoãn tương tác"
         case .dnd:
-            return "Đang bận / Không làm phiền"
+            return "Đang tập trung, không muốn bị làm phiền"
         case .offline:
             return "Ẩn trạng thái hoạt động với mọi người"
         }
@@ -86,22 +76,22 @@ enum UserPresenceMode: String, CaseIterable, Identifiable, Codable, Sendable {
         case .dnd:
             return "minus.circle.fill"
         case .offline:
-            return "eye.slash.fill"
+            return "circle.dashed"
         }
     }
 
     var dotColor: Color {
         switch self {
         case .online:
-            return .green
+            return Color(.systemGreen)
         case .idle:
-            return .orange
+            return Color(.systemOrange)
         case .sleep:
-            return .indigo
+            return Color(.systemIndigo)
         case .dnd:
-            return .red
+            return Color(.systemRed)
         case .offline:
-            return Color(.systemGray)
+            return Color(.secondaryLabel)
         }
     }
 }
@@ -129,9 +119,9 @@ enum AppAppearanceMode: String, CaseIterable, Identifiable, Codable, Sendable {
         case .system:
             return "circle.lefthalf.filled"
         case .light:
-            return "sun.max.fill"
+            return "sun.max"
         case .dark:
-            return "moon.stars.fill"
+            return "moon"
         }
     }
 
@@ -288,7 +278,6 @@ final class AppSettings {
         if trimmed.lowercased().hasSuffix("/api") {
             trimmed = String(trimmed.dropLast(4))
         }
-        // Tự động nâng cấp http -> https cho domain Cloudflare để không bị mất body POST do redirect 301
         if trimmed.lowercased() == "http://chat-bln.fishu.io.vn" {
             trimmed = "https://chat-bln.fishu.io.vn"
         }
@@ -307,7 +296,6 @@ final class AppSettings {
         }
         let octets = hostOnly.split(separator: ".").compactMap { Int($0) }
         if octets.count == 4 {
-            // IPv4 (127.x, 10.x, 192.168.x, 172.16-31.x, 100.x Tailscale...) mặc định http nếu không ghi rõ https
             return true
         }
         return false
@@ -315,6 +303,14 @@ final class AppSettings {
 }
 
 extension Color {
-    static let chatBLNPrimary = Color(red: 11.0 / 255.0, green: 87.0 / 255.0, blue: 208.0 / 255.0)
-    static let chatBLNBlue = Color(red: 0.0 / 255.0, green: 122.0 / 255.0, blue: 255.0 / 255.0)
+    /// Quiet Signal Precision Sapphire: `#0F52BA` in Light Mode, `#3B82F6` in Dark Mode (>= 4.5:1 AA contrast).
+    static let chatBLNPrimary = Color(
+        UIColor { traits in
+            if traits.userInterfaceStyle == .dark {
+                return UIColor(red: 59.0 / 255.0, green: 130.0 / 255.0, blue: 246.0 / 255.0, alpha: 1.0)
+            } else {
+                return UIColor(red: 15.0 / 255.0, green: 82.0 / 255.0, blue: 186.0 / 255.0, alpha: 1.0)
+            }
+        }
+    )
 }

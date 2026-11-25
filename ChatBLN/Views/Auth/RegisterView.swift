@@ -2,12 +2,14 @@ import SwiftUI
 
 struct RegisterView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var authViewModel: AuthViewModel
 
     @State private var username: String = ""
     @State private var fullName: String = ""
     @State private var password: String = ""
     @State private var confirmPassword: String = ""
+    @State private var showPasswords: Bool = false
     @State private var email: String = ""
     @State private var phone: String = ""
     @State private var gender: String = "Nam"
@@ -16,44 +18,105 @@ struct RegisterView: View {
     @State private var bio: String = ""
     @State private var localValidationError: String?
 
+    @FocusState private var focusedField: Field?
+
+    private enum Field: Hashable {
+        case username
+        case fullName
+        case password
+        case confirmPassword
+        case email
+        case phone
+        case bio
+    }
+
     private let genderOptions = ["Nam", "Nữ", "Khác"]
 
     var body: some View {
         Form {
             if let banner = localValidationError ?? authViewModel.errorMessage {
                 Section {
-                    Label(banner, systemImage: "exclamationmark.triangle.fill")
+                    Label(banner, systemImage: "exclamationmark.circle.fill")
                         .font(.footnote)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color(.systemRed))
                 }
             }
 
-            Section("Thông tin bắt buộc") {
+            Section {
                 TextField("Tên đăng nhập (3–50 ký tự)", text: $username)
                     .textContentType(.username)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .focused($focusedField, equals: .username)
+                    .submitLabel(.next)
+                    .onSubmit { focusedField = .fullName }
 
                 TextField("Họ và tên hiển thị", text: $fullName)
                     .textContentType(.name)
+                    .focused($focusedField, equals: .fullName)
+                    .submitLabel(.next)
+                    .onSubmit { focusedField = .password }
 
-                SecureField("Mật khẩu (tối thiểu 6 ký tự)", text: $password)
+                HStack(spacing: 8) {
+                    Group {
+                        if showPasswords {
+                            TextField("Mật khẩu (tối thiểu 6 ký tự)", text: $password)
+                        } else {
+                            SecureField("Mật khẩu (tối thiểu 6 ký tự)", text: $password)
+                        }
+                    }
                     .textContentType(.newPassword)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused($focusedField, equals: .password)
+                    .submitLabel(.next)
+                    .onSubmit { focusedField = .confirmPassword }
 
-                SecureField("Nhập lại mật khẩu", text: $confirmPassword)
-                    .textContentType(.newPassword)
+                    Button {
+                        showPasswords.toggle()
+                    } label: {
+                        Image(systemName: showPasswords ? "eye.slash" : "eye")
+                            .foregroundStyle(.secondary)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(showPasswords ? "Ẩn mật khẩu" : "Hiện mật khẩu")
+                }
+
+                Group {
+                    if showPasswords {
+                        TextField("Nhập lại mật khẩu", text: $confirmPassword)
+                    } else {
+                        SecureField("Nhập lại mật khẩu", text: $confirmPassword)
+                    }
+                }
+                .textContentType(.newPassword)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .focused($focusedField, equals: .confirmPassword)
+                .submitLabel(.next)
+                .onSubmit { focusedField = .email }
+            } header: {
+                Text("Thông tin tài khoản bắt buộc")
+            } footer: {
+                Text("Nên cung cấp thêm Email ở mục bên dưới để có thể khôi phục mật khẩu bằng mã OTP khi cần.")
             }
 
             Section("Thông tin hồ sơ (tuỳ chọn)") {
-                TextField("Email", text: $email)
+                TextField("Email (dùng để nhận OTP quên mật khẩu)", text: $email)
                     .keyboardType(.emailAddress)
                     .textContentType(.emailAddress)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .focused($focusedField, equals: .email)
+                    .submitLabel(.next)
+                    .onSubmit { focusedField = .phone }
 
                 TextField("Số điện thoại", text: $phone)
                     .keyboardType(.phonePad)
                     .textContentType(.telephoneNumber)
+                    .focused($focusedField, equals: .phone)
 
                 Picker("Giới tính", selection: $gender) {
                     ForEach(genderOptions, id: \.self) { option in
@@ -61,7 +124,10 @@ struct RegisterView: View {
                     }
                 }
 
-                Toggle("Cập nhật ngày sinh", isOn: $includeDob.animation())
+                Toggle(
+                    "Cập nhật ngày sinh",
+                    isOn: reduceMotion ? $includeDob : $includeDob.animation(.snappy(duration: 0.2))
+                )
                 if includeDob {
                     DatePicker(
                         "Ngày sinh",
@@ -74,23 +140,23 @@ struct RegisterView: View {
 
                 TextField("Tiểu sử ngắn (tối đa 300 ký tự)", text: $bio, axis: .vertical)
                     .lineLimit(2...4)
+                    .focused($focusedField, equals: .bio)
             }
 
             Section {
                 Button {
                     submitRegistration()
                 } label: {
-                    HStack {
+                    HStack(spacing: 8) {
                         Spacer()
                         if authViewModel.isSubmitting {
                             ProgressView()
-                                .padding(.trailing, 8)
                         }
                         Text(authViewModel.isSubmitting ? "Đang tạo tài khoản..." : "Đăng ký & Đăng nhập")
                             .font(.headline)
                         Spacer()
                     }
-                    .frame(minHeight: 36)
+                    .frame(minHeight: 44)
                 }
                 .disabled(authViewModel.isSubmitting)
             }
@@ -108,20 +174,26 @@ struct RegisterView: View {
 
         guard cleanUsername.count >= 3 else {
             localValidationError = "Tên đăng nhập phải có ít nhất 3 ký tự."
+            focusedField = .username
             return
         }
         guard !cleanFullName.isEmpty else {
             localValidationError = "Vui lòng nhập họ và tên hiển thị."
+            focusedField = .fullName
             return
         }
         guard password.count >= 6 else {
             localValidationError = "Mật khẩu phải có ít nhất 6 ký tự."
+            focusedField = .password
             return
         }
         guard password == confirmPassword else {
             localValidationError = "Mật khẩu nhập lại không khớp."
+            focusedField = .confirmPassword
             return
         }
+
+        focusedField = nil
 
         let dobString: String?
         if includeDob {

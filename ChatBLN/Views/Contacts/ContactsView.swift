@@ -32,33 +32,38 @@ struct ContactsView: View {
         NavigationStack {
             Group {
                 if chatStore.isLoadingFriends && chatStore.friends.isEmpty {
-                    ProgressView("Đang tải danh bạ bạn bè...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    skeletonContactsList
                 } else if filteredFriends.isEmpty {
                     emptyContactsState
                 } else {
                     List {
                         if let unfriendError {
                             Section {
-                                Text(unfriendError)
+                                Label(unfriendError, systemImage: "exclamationmark.triangle.fill")
                                     .font(.footnote)
-                                    .foregroundStyle(.red)
+                                    .foregroundStyle(Color(.systemRed))
                             }
                         }
 
                         if !onlineFriends.isEmpty {
-                            Section("Đang hoạt động (\(onlineFriends.count))") {
+                            Section {
                                 ForEach(onlineFriends) { friend in
                                     friendRow(friend)
                                 }
+                            } header: {
+                                Text("Đang hoạt động (\(onlineFriends.count))")
+                                    .monospacedDigit()
                             }
                         }
 
                         if !offlineFriends.isEmpty {
-                            Section("Bạn bè (\(offlineFriends.count))") {
+                            Section {
                                 ForEach(offlineFriends) { friend in
                                     friendRow(friend)
                                 }
+                            } header: {
+                                Text("Bạn bè (\(offlineFriends.count))")
+                                    .monospacedDigit()
                             }
                         }
                     }
@@ -80,6 +85,7 @@ struct ContactsView: View {
                         showAddFriendSheet = true
                     } label: {
                         Label("Kết bạn", systemImage: "person.badge.plus")
+                            .frame(minWidth: 44, minHeight: 44)
                     }
                     .accessibilityLabel("Tìm và thêm bạn bè")
                 }
@@ -120,8 +126,44 @@ struct ContactsView: View {
         }
     }
 
+    private var skeletonContactsList: some View {
+        List(0..<5, id: \.self) { _ in
+            HStack(spacing: 12) {
+                Circle()
+                    .fill(Color(.tertiarySystemFill))
+                    .frame(width: 44, height: 44)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Trần Hoàng Minh")
+                        .font(.body.weight(.medium))
+                    Text("@tranminh · Trực tuyến")
+                        .font(.caption)
+                }
+            }
+            .padding(.vertical, 2)
+            .redacted(reason: .placeholder)
+        }
+        .listStyle(.insetGrouped)
+        .allowsHitTesting(false)
+        .accessibilityLabel("Đang tải danh bạ bạn bè")
+    }
+
     private func friendRow(_ friend: FriendResponse) -> some View {
-        HStack(spacing: 12) {
+        let statusLabel = ChatDateFormatter.formatPresenceStatus(
+            isOnline: friend.isOnline,
+            presenceStatus: friend.presenceStatus,
+            lastSeen: friend.lastSeen
+        )
+        let statusSymbol = ChatDateFormatter.presenceSymbolName(
+            isOnline: friend.isOnline,
+            presenceStatus: friend.presenceStatus
+        )
+        let statusTint = ChatDateFormatter.presenceTintColor(
+            isOnline: friend.isOnline,
+            presenceStatus: friend.presenceStatus
+        )
+
+        return HStack(spacing: 8) {
             Button {
                 Task {
                     _ = await chatStore.startOrOpenPrivateChat(with: friend)
@@ -131,39 +173,51 @@ struct ContactsView: View {
                     AvatarView(
                         name: friend.displayName,
                         avatarURL: settings.resolveAssetURL(friend.avatarUrl),
-                        size: 48,
+                        size: 46,
                         isOnline: friend.isOnline ?? false,
                         presenceStatus: friend.presenceStatus
                     )
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text(friend.displayName)
-                            .font(.body.weight(.semibold))
+                            .font(.body.weight(.medium))
                             .foregroundStyle(.primary)
 
-                        Text("@\(friend.username) • \(ChatDateFormatter.formatPresenceStatus(isOnline: friend.isOnline, presenceStatus: friend.presenceStatus, lastSeen: friend.lastSeen))")
-                            .font(.caption)
-                            .foregroundStyle(ChatDateFormatter.presenceTintColor(isOnline: friend.isOnline, presenceStatus: friend.presenceStatus))
-                            .lineLimit(1)
+                        HStack(spacing: 4) {
+                            Text("@\(friend.username)")
+                                .foregroundStyle(.secondary)
+                            Text("·")
+                                .foregroundStyle(.tertiary)
+                            Image(systemName: statusSymbol)
+                                .foregroundStyle(statusTint)
+                            Text(statusLabel)
+                                .foregroundStyle(statusTint)
+                        }
+                        .font(.caption)
+                        .lineLimit(1)
                     }
 
                     Spacer()
 
-                    Image(systemName: "bubble.right.fill")
-                        .font(.subheadline)
+                    Image(systemName: "bubble.right")
+                        .font(.subheadline.weight(.medium))
                         .foregroundStyle(Color.chatBLNPrimary)
+                        .accessibilityHidden(true)
                 }
                 .padding(.vertical, 2)
             }
             .buttonStyle(.plain)
+            .accessibilityElement(children: .combine)
+            .accessibilityHint("Mở cuộc trò chuyện riêng")
 
             Button(role: .destructive) {
                 friendPendingUnfriend = friend
             } label: {
                 Image(systemName: "person.badge.minus")
                     .font(.subheadline)
-                    .foregroundStyle(.red)
-                    .padding(8)
+                    .foregroundStyle(Color(.systemRed))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
             .accessibilityLabel("Hủy kết bạn với \(friend.displayName)")
@@ -206,6 +260,7 @@ struct ContactsView: View {
                     showAddFriendSheet = true
                 } label: {
                     Label("Thêm bạn bè", systemImage: "person.badge.plus")
+                        .frame(minHeight: 36)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.chatBLNPrimary)

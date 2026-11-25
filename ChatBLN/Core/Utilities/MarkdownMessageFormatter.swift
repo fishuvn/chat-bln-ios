@@ -289,4 +289,9 @@ enum ChatDateFormatter {
         let mode = UserPresenceMode.fromServer(presenceStatus)
         return mode == .offline ? .secondary : mode.dotColor
     }
+
+    static func presenceSymbolName(isOnline: Bool?, presenceStatus: String? = nil) -> String {
+        guard isOnline == true else { return "circle.dashed" }
+        return UserPresenceMode.fromServer(presenceStatus).iconName
+    }
 }

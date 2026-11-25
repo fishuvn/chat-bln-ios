@@ -14,10 +14,6 @@ struct JoinGroupSheet: View {
     @State private var errorMessage: String?
     @State private var successBanner: String?
 
-    private var extractedCode: String? {
-        GroupInviteLinkParser.extractInviteCode(from: inviteInput)
-    }
-
     var body: some View {
         NavigationStack {
             Form {
@@ -47,6 +43,7 @@ struct JoinGroupSheet: View {
                         } label: {
                             Label("Dán link / mã", systemImage: "doc.on.clipboard")
                                 .font(.subheadline.weight(.medium))
+                                .frame(minHeight: 36)
                         }
                         .buttonStyle(.bordered)
 
@@ -67,10 +64,11 @@ struct JoinGroupSheet: View {
                                 Text("Kiểm tra nhóm")
                                     .fontWeight(.semibold)
                             }
+                            .frame(minHeight: 36)
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.chatBLNPrimary)
-                        .disabled(isLoadingPreview || extractedCode == nil)
+                        .disabled(isLoadingPreview)
                     }
                     .padding(.vertical, 2)
                 } header: {
@@ -83,7 +81,7 @@ struct JoinGroupSheet: View {
                     Section {
                         Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
                             .font(.footnote)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(Color(.systemRed))
                     }
                 }
 
@@ -91,7 +89,7 @@ struct JoinGroupSheet: View {
                     Section {
                         Label(successBanner, systemImage: "checkmark.circle.fill")
                             .font(.footnote)
-                            .foregroundStyle(.green)
+                            .foregroundStyle(Color(.systemGreen))
                     }
                 }
 
@@ -101,7 +99,7 @@ struct JoinGroupSheet: View {
                             AvatarView(
                                 name: preview.name,
                                 avatarURL: nil,
-                                size: 68,
+                                size: 64,
                                 isGroup: true
                             )
 
@@ -113,8 +111,8 @@ struct JoinGroupSheet: View {
                                 HStack(spacing: 8) {
                                     visibilityBadge(preview.resolvedVisibility)
 
-                                    Label("\(preview.memberCount) thành viên", systemImage: "person.2.fill")
-                                        .font(.caption.weight(.medium))
+                                    Label("\(preview.memberCount) thành viên", systemImage: "person.2")
+                                        .font(.caption.weight(.medium).monospacedDigit())
                                         .foregroundStyle(.secondary)
                                         .padding(.horizontal, 9)
                                         .padding(.vertical, 4)
@@ -165,13 +163,10 @@ struct JoinGroupSheet: View {
         let isPublic = visibility == .publicGroup
         return Label(visibility.title, systemImage: visibility.iconName)
             .font(.caption.weight(.semibold))
-            .foregroundStyle(isPublic ? Color.green : Color.orange)
+            .foregroundStyle(isPublic ? Color(.systemGreen) : Color(.secondaryLabel))
             .padding(.horizontal, 9)
             .padding(.vertical, 4)
-            .background(
-                (isPublic ? Color.green : Color.orange).opacity(0.14),
-                in: Capsule()
-            )
+            .background(Color(.tertiarySystemFill), in: Capsule())
     }
 
     @ViewBuilder
@@ -182,22 +177,21 @@ struct JoinGroupSheet: View {
                     await openJoinedConversation(conversationId: item.conversationId)
                 }
             } label: {
-                Label("Mở nhóm trò chuyện", systemImage: "bubble.left.and.bubble.right.fill")
+                Label("Mở nhóm trò chuyện", systemImage: "bubble.left.and.bubble.right")
                     .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 44)
+                    .frame(maxWidth: .infinity, minHeight: 44)
             }
             .buttonStyle(.borderedProminent)
             .tint(.chatBLNPrimary)
         } else if item.isPendingApproval {
-            Label("Đã gửi yêu cầu • Đang chờ Trưởng / Phó nhóm duyệt", systemImage: "clock.badge.checkmark")
+            Label("Đã gửi yêu cầu · Đang chờ Trưởng / Phó nhóm duyệt", systemImage: "clock.badge.checkmark")
                 .font(.footnote.weight(.semibold))
-                .foregroundStyle(.orange)
+                .foregroundStyle(Color(.systemOrange))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .frame(maxWidth: .infinity)
-                .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         } else {
             let isPublic = item.resolvedVisibility == .publicGroup
             Button {
@@ -215,8 +209,7 @@ struct JoinGroupSheet: View {
                     Text(isPublic ? "Tham gia nhóm ngay" : "Gửi yêu cầu tham gia")
                         .font(.headline)
                 }
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 44)
+                .frame(maxWidth: .infinity, minHeight: 44)
             }
             .buttonStyle(.borderedProminent)
             .tint(.chatBLNPrimary)

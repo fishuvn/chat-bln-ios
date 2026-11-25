@@ -75,7 +75,7 @@ struct ConversationInfoSheet: View {
                     Section {
                         Label(actionNotice, systemImage: "checkmark.circle.fill")
                             .font(.footnote)
-                            .foregroundStyle(.green)
+                            .foregroundStyle(Color(.systemGreen))
                     }
                 }
 
@@ -83,7 +83,7 @@ struct ConversationInfoSheet: View {
                     Section {
                         Label(deleteError, systemImage: "exclamationmark.triangle.fill")
                             .font(.footnote)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(Color(.systemRed))
                     }
                 }
 
@@ -120,6 +120,7 @@ struct ConversationInfoSheet: View {
 
                 dangerZoneSection
             }
+            .listStyle(.insetGrouped)
             .confirmationDialog(
                 "Hủy kết bạn với \"\(liveConversation.displayName)\"? Hai bạn sẽ trở về trạng thái chưa kết bạn và có thể kết bạn lại bất cứ lúc nào.",
                 isPresented: $showUnfriendConfirm,
@@ -216,7 +217,7 @@ struct ConversationInfoSheet: View {
                 AvatarView(
                     name: liveConversation.displayName,
                     avatarURL: settings.resolveAssetURL(liveConversation.avatarUrl),
-                    size: 80,
+                    size: 76,
                     isGroup: liveConversation.isGroup,
                     isOnline: liveConversation.isGroup ? nil : (liveConversation.isOnline ?? false),
                     presenceStatus: liveConversation.presenceStatus
@@ -226,16 +227,28 @@ struct ConversationInfoSheet: View {
                     .font(.title3.weight(.bold))
                     .multilineTextAlignment(.center)
 
-                Text(statusSubtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(
-                        liveConversation.isGroup
-                            ? .secondary
-                            : ChatDateFormatter.presenceTintColor(
+                HStack(spacing: 5) {
+                    if !liveConversation.isGroup {
+                        Image(
+                            systemName: ChatDateFormatter.presenceSymbolName(
                                 isOnline: liveConversation.isOnline,
                                 presenceStatus: liveConversation.presenceStatus
                             )
-                    )
+                        )
+                        .font(.caption)
+                    }
+
+                    Text(statusSubtitle)
+                        .font(.subheadline)
+                }
+                .foregroundStyle(
+                    liveConversation.isGroup
+                        ? .secondary
+                        : ChatDateFormatter.presenceTintColor(
+                            isOnline: liveConversation.isOnline,
+                            presenceStatus: liveConversation.presenceStatus
+                        )
+                )
 
                 if liveConversation.isGroup {
                     HStack(spacing: 8) {
@@ -243,29 +256,26 @@ struct ConversationInfoSheet: View {
                         let isPublic = visibility == .publicGroup
                         Label(visibility.title, systemImage: visibility.iconName)
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(isPublic ? Color.green : Color.indigo)
+                            .foregroundStyle(isPublic ? Color(.systemGreen) : Color(.secondaryLabel))
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
-                            .background(
-                                (isPublic ? Color.green : Color.indigo).opacity(0.14),
-                                in: Capsule()
-                            )
+                            .background(Color(.tertiarySystemFill), in: Capsule())
 
                         roleBadgeView(for: liveConversation.resolvedGroupRole)
                     }
 
                     if liveConversation.canCurrentUserManageGroupRequests && effectivePendingCount > 0 {
                         Label("\(effectivePendingCount) yêu cầu tham gia chờ duyệt", systemImage: "person.crop.circle.badge.clock")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.orange)
+                            .font(.caption.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(Color(.systemOrange))
                             .padding(.horizontal, 12)
                             .padding(.vertical, 5)
-                            .background(Color.orange.opacity(0.14), in: Capsule())
+                            .background(Color(.systemOrange).opacity(0.14), in: Capsule())
                     }
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
+            .padding(.vertical, 6)
             .listRowBackground(Color.clear)
         }
     }
@@ -321,7 +331,7 @@ struct ConversationInfoSheet: View {
                         .textSelection(.enabled)
                         .padding(10)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
                     HStack(spacing: 8) {
                         Button {
@@ -331,7 +341,7 @@ struct ConversationInfoSheet: View {
                         } label: {
                             Label("Sao chép", systemImage: "doc.on.doc")
                                 .font(.footnote.weight(.semibold))
-                                .frame(maxWidth: .infinity)
+                                .frame(maxWidth: .infinity, minHeight: 36)
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.small)
@@ -344,7 +354,7 @@ struct ConversationInfoSheet: View {
                             ) {
                                 Label("Chia sẻ", systemImage: "square.and.arrow.up")
                                     .font(.footnote.weight(.semibold))
-                                    .frame(maxWidth: .infinity)
+                                    .frame(maxWidth: .infinity, minHeight: 36)
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
@@ -357,9 +367,11 @@ struct ConversationInfoSheet: View {
                                 if isRegeneratingInvite {
                                     ProgressView()
                                         .controlSize(.small)
+                                        .frame(minHeight: 36)
                                 } else {
                                     Label("Đổi link", systemImage: "arrow.triangle.2.circlepath")
                                         .font(.footnote.weight(.semibold))
+                                        .frame(minHeight: 36)
                                 }
                             }
                             .buttonStyle(.bordered)
@@ -409,7 +421,7 @@ struct ConversationInfoSheet: View {
                             let createdLabel = ChatDateFormatter.formatConversationTime(req.createdAt)
                             if !createdLabel.isEmpty {
                                 Text(createdLabel)
-                                    .font(.caption2)
+                                    .font(.caption2.monospacedDigit())
                                     .foregroundStyle(.tertiary)
                             }
                         }
@@ -431,7 +443,7 @@ struct ConversationInfoSheet: View {
                                     Text("Duyệt")
                                         .font(.footnote.weight(.semibold))
                                 }
-                                .frame(maxWidth: .infinity)
+                                .frame(maxWidth: .infinity, minHeight: 36)
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
@@ -445,7 +457,7 @@ struct ConversationInfoSheet: View {
                             } label: {
                                 Text("Từ chối")
                                     .font(.footnote.weight(.medium))
-                                    .frame(maxWidth: .infinity)
+                                    .frame(maxWidth: .infinity, minHeight: 36)
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
@@ -514,20 +526,25 @@ struct ConversationInfoSheet: View {
                                                     .resizable()
                                                     .scaledToFill()
                                             default:
-                                                Color(.tertiarySystemGroupedBackground)
+                                                Color(.tertiarySystemFill)
                                             }
                                         }
                                     } else {
-                                        Color.black.opacity(0.82)
+                                        Color(.secondarySystemFill)
                                         Image(systemName: "play.circle.fill")
                                             .font(.title2)
-                                            .foregroundStyle(.white)
+                                            .foregroundStyle(.primary)
                                     }
                                 }
                                 .frame(height: 92)
                                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel(
+                                item.normalizedAttachmentKind == "IMAGE"
+                                    ? "Mở ảnh đã chia sẻ"
+                                    : "Mở video đã chia sẻ"
+                            )
                         }
                     }
                 }
@@ -549,9 +566,10 @@ struct ConversationInfoSheet: View {
                             openURL(url)
                         } label: {
                             HStack(spacing: 12) {
-                                Image(systemName: "doc.fill")
+                                Image(systemName: "doc.text")
                                     .foregroundStyle(Color.chatBLNPrimary)
                                     .frame(width: 28)
+                                    .accessibilityHidden(true)
 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(fileMsg.attachmentName ?? "Tệp đính kèm")
@@ -561,17 +579,19 @@ struct ConversationInfoSheet: View {
 
                                     if let size = fileMsg.attachmentSize, !size.isEmpty {
                                         Text(size)
-                                            .font(.caption)
+                                            .font(.caption.monospacedDigit())
                                             .foregroundStyle(.secondary)
                                     }
                                 }
 
                                 Spacer()
 
-                                Image(systemName: "arrow.up.right.square")
+                                Image(systemName: "arrow.up.right")
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
+                                    .accessibilityHidden(true)
                             }
+                            .frame(minHeight: 44)
                         }
                     }
                 }
@@ -614,10 +634,11 @@ struct ConversationInfoSheet: View {
                             Text("Hủy kết bạn")
                                 .fontWeight(.semibold)
                         }
+                        .frame(minHeight: 44)
                     }
                     .disabled(isProcessingFriendship)
                 } else if liveConversation.friendshipStatus?.uppercased() == "PENDING" {
-                    Label("Đã gửi lời mời kết bạn", systemImage: "clock.fill")
+                    Label("Đã gửi lời mời kết bạn", systemImage: "clock")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
                 } else {
@@ -635,6 +656,7 @@ struct ConversationInfoSheet: View {
                             Text("Kết bạn lại")
                                 .fontWeight(.semibold)
                         }
+                        .frame(minHeight: 44)
                     }
                     .disabled(isProcessingFriendship)
                 }
@@ -650,13 +672,14 @@ struct ConversationInfoSheet: View {
                         } else {
                             Image(
                                 systemName: liveConversation.isGroup
-                                    ? (liveConversation.isCurrentUserGroupAdmin ? "trash.fill" : "rectangle.portrait.and.arrow.right")
-                                    : "trash.fill"
+                                    ? (liveConversation.isCurrentUserGroupAdmin ? "trash" : "rectangle.portrait.and.arrow.right")
+                                    : "trash"
                             )
                         }
                         Text(isDeleting ? "Đang xử lý..." : dangerActionButtonTitle)
                             .fontWeight(.semibold)
                     }
+                    .frame(minHeight: 44)
                 }
                 .disabled(isDeleting)
             }
@@ -669,7 +692,7 @@ struct ConversationInfoSheet: View {
         let fg: Color = {
             switch role {
             case .admin:
-                return .orange
+                return Color(.systemOrange)
             case .deputy:
                 return .chatBLNPrimary
             case .member:
@@ -680,9 +703,9 @@ struct ConversationInfoSheet: View {
         let bg: Color = {
             switch role {
             case .admin:
-                return Color.orange.opacity(0.16)
+                return Color(.systemOrange).opacity(0.14)
             case .deputy:
-                return Color.chatBLNPrimary.opacity(0.14)
+                return Color.chatBLNPrimary.opacity(0.12)
             case .member:
                 return Color(.tertiarySystemFill)
             }
@@ -738,7 +761,7 @@ struct ConversationInfoSheet: View {
                 ProgressView()
                     .controlSize(.small)
             } else if !isMe {
-                HStack(spacing: 10) {
+                HStack(spacing: 2) {
                     if let matchedFriend {
                         Button {
                             dismiss()
@@ -746,9 +769,11 @@ struct ConversationInfoSheet: View {
                                 _ = await chatStore.startOrOpenPrivateChat(with: matchedFriend)
                             }
                         } label: {
-                            Image(systemName: "bubble.right.fill")
-                                .font(.subheadline)
+                            Image(systemName: "bubble.right")
+                                .font(.subheadline.weight(.medium))
                                 .foregroundStyle(Color.chatBLNPrimary)
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.borderless)
                         .accessibilityLabel("Nhắn tin riêng với \(member.displayName)")
@@ -759,8 +784,10 @@ struct ConversationInfoSheet: View {
                             }
                         } label: {
                             Image(systemName: "person.badge.plus")
-                                .font(.subheadline)
+                                .font(.subheadline.weight(.medium))
                                 .foregroundStyle(Color.chatBLNPrimary)
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.borderless)
                         .accessibilityLabel("Kết bạn với \(member.displayName)")
@@ -791,12 +818,14 @@ struct ConversationInfoSheet: View {
                             Button(role: .destructive) {
                                 memberPendingLeaderTransfer = member
                             } label: {
-                                Label("Chuyển quyền Trưởng nhóm", systemImage: "crown.fill")
+                                Label("Chuyển quyền Trưởng nhóm", systemImage: "crown")
                             }
                         } label: {
-                            Image(systemName: "ellipsis.circle.fill")
-                                .font(.title3)
+                            Image(systemName: "ellipsis.circle")
+                                .font(.body)
                                 .foregroundStyle(.secondary)
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.borderless)
                         .accessibilityLabel("Quản lý vai trò của \(member.displayName)")

@@ -41,12 +41,12 @@ struct NewConversationSheet: View {
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .padding(.vertical, 10)
 
                 if let localError {
                     Label(localError, systemImage: "exclamationmark.triangle.fill")
                         .font(.footnote)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color(.systemRed))
                         .padding(.horizontal, 16)
                         .padding(.bottom, 8)
                 }
@@ -62,14 +62,11 @@ struct NewConversationSheet: View {
                             }
                         } label: {
                             HStack(spacing: 12) {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.chatBLNPrimary.opacity(0.14))
-                                        .frame(width: 38, height: 38)
-                                    Image(systemName: "link.badge.plus")
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(Color.chatBLNPrimary)
-                                }
+                                Image(systemName: "link.badge.plus")
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(Color.chatBLNPrimary)
+                                    .frame(width: 32)
+                                    .accessibilityHidden(true)
 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("Tham gia nhóm bằng link / mã mời")
@@ -86,6 +83,7 @@ struct NewConversationSheet: View {
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(.tertiary)
                             }
+                            .frame(minHeight: 44)
                         }
                     }
 
@@ -95,8 +93,7 @@ struct NewConversationSheet: View {
 
                             Picker("Quyền riêng tư", selection: $groupVisibility) {
                                 ForEach(GroupVisibility.allCases) { option in
-                                    Label(option.title, systemImage: option.iconName)
-                                        .tag(option)
+                                    Text(option.title).tag(option)
                                 }
                             }
                             .pickerStyle(.segmented)
@@ -107,7 +104,7 @@ struct NewConversationSheet: View {
                                     .foregroundStyle(.secondary)
                             } else {
                                 Text("Đã chọn \(selectedMemberIds.count) thành viên ban đầu")
-                                    .font(.caption.weight(.medium))
+                                    .font(.caption.weight(.medium).monospacedDigit())
                                     .foregroundStyle(Color.chatBLNPrimary)
                             }
                         } header: {
@@ -139,6 +136,7 @@ struct NewConversationSheet: View {
                 }
                 .listStyle(.insetGrouped)
             }
+            .background(Color(.systemGroupedBackground))
             .searchable(text: $filterKeyword, prompt: "Lọc bạn bè theo tên hoặc @username")
             .navigationTitle("Trò chuyện mới")
             .navigationBarTitleDisplayMode(.inline)
@@ -156,10 +154,7 @@ struct NewConversationSheet: View {
                             }
                         }
                         .fontWeight(.semibold)
-                        .disabled(
-                            isSubmitting ||
-                            groupName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        )
+                        .disabled(isSubmitting)
                     }
                 }
             }
@@ -181,13 +176,14 @@ struct NewConversationSheet: View {
 
     @ViewBuilder
     private func friendRow(_ friend: FriendResponse) -> some View {
+        let isSelected = selectedMemberIds.contains(friend.id)
         Button {
             if mode == .direct {
                 Task {
                     await startPrivateChat(with: friend)
                 }
             } else {
-                if selectedMemberIds.contains(friend.id) {
+                if isSelected {
                     selectedMemberIds.remove(friend.id)
                 } else {
                     selectedMemberIds.insert(friend.id)
@@ -215,17 +211,19 @@ struct NewConversationSheet: View {
                 Spacer()
 
                 if mode == .group {
-                    Image(systemName: selectedMemberIds.contains(friend.id) ? "checkmark.circle.fill" : "circle")
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                         .font(.title3)
-                        .foregroundStyle(selectedMemberIds.contains(friend.id) ? Color.chatBLNPrimary : .secondary)
+                        .foregroundStyle(isSelected ? Color.chatBLNPrimary : .secondary)
                 } else {
                     Image(systemName: "chevron.right")
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(.tertiary)
                 }
             }
+            .frame(minHeight: 44)
         }
         .disabled(isSubmitting)
+        .accessibilityAddTraits(mode == .group && isSelected ? .isSelected : [])
     }
 
     private func startPrivateChat(with friend: FriendResponse) async {
@@ -241,10 +239,16 @@ struct NewConversationSheet: View {
     }
 
     private func submitCreateGroup() async {
+        let trimmed = groupName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            localError = "Vui lòng nhập tên nhóm trò chuyện."
+            return
+        }
+
         isSubmitting = true
         localError = nil
         let created = await chatStore.createGroupChat(
-            name: groupName,
+            name: trimmed,
             memberIds: Array(selectedMemberIds),
             visibility: groupVisibility
         )

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct RootView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var settings: AppSettings
     @Bindable var authViewModel: AuthViewModel
     @Bindable var chatStore: ChatStoreViewModel
@@ -8,10 +9,18 @@ struct RootView: View {
     var body: some View {
         Group {
             if authViewModel.isRestoringSession {
-                VStack(spacing: 16) {
-                    Image(systemName: "bubble.left.and.bubble.right.fill")
-                        .font(.system(size: 48, weight: .semibold))
-                        .foregroundStyle(Color.chatBLNPrimary)
+                VStack(spacing: 14) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(Color.chatBLNPrimary)
+                            .frame(width: 52, height: 52)
+
+                        Image(systemName: "bubble.left.fill")
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(.white)
+                    }
+                    .accessibilityHidden(true)
+
                     ProgressView("Đang khôi phục phiên đăng nhập...")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -37,7 +46,7 @@ struct RootView: View {
                 )
             }
         }
-        .animation(.snappy(duration: 0.25), value: authViewModel.isAuthenticated)
+        .animation(reduceMotion ? .linear(duration: 0.12) : .snappy(duration: 0.22), value: authViewModel.isAuthenticated)
         .task {
             await authViewModel.restoreSessionIfAvailable()
         }

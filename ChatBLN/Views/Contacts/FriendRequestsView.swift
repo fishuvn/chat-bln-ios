@@ -21,8 +21,10 @@ struct FriendRequestsView: View {
             VStack(spacing: 0) {
                 Picker("Loại lời mời", selection: $selectedSegment) {
                     Text("Đã nhận (\(chatStore.receivedRequests.count))")
+                        .monospacedDigit()
                         .tag(RequestSegment.received)
                     Text("Đã gửi (\(chatStore.sentRequests.count))")
+                        .monospacedDigit()
                         .tag(RequestSegment.sent)
                 }
                 .pickerStyle(.segmented)
@@ -36,11 +38,12 @@ struct FriendRequestsView: View {
                                 ? "exclamationmark.triangle.fill"
                                 : "checkmark.circle.fill"
                         )
-                        .foregroundStyle(isFeedbackError ? Color.red : Color.green)
+                        .foregroundStyle(isFeedbackError ? Color(.systemRed) : Color(.systemGreen))
+                        .accessibilityHidden(true)
 
                         Text(feedbackMessage)
                             .font(.footnote)
-                            .foregroundStyle(isFeedbackError ? Color.red : Color.primary)
+                            .foregroundStyle(isFeedbackError ? Color(.systemRed) : .primary)
 
                         Spacer()
 
@@ -49,16 +52,23 @@ struct FriendRequestsView: View {
                         } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundStyle(.secondary)
+                                .frame(width: 44, height: 44)
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Đóng thông báo")
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .padding(.leading, 16)
+                    .padding(.trailing, 6)
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .overlay(alignment: .bottom) {
+                        Divider()
+                    }
                 }
 
                 contentList
             }
             .background(Color(.systemGroupedBackground))
-            .navigationTitle("Lời mời kết bạn")
+            .navigationTitle("Lời mời")
             .refreshable {
                 await chatStore.loadFriendRequests()
             }
@@ -106,7 +116,7 @@ struct FriendRequestsView: View {
                 AvatarView(
                     name: request.requesterDisplayName,
                     avatarURL: settings.resolveAssetURL(request.requesterAvatarUrl),
-                    size: 50
+                    size: 48
                 )
 
                 VStack(alignment: .leading, spacing: 3) {
@@ -122,7 +132,7 @@ struct FriendRequestsView: View {
                     let createdTime = ChatDateFormatter.formatConversationTime(request.createdAt)
                     if !createdTime.isEmpty {
                         Text("Gửi lúc \(createdTime)")
-                            .font(.caption2)
+                            .font(.caption2.monospacedDigit())
                             .foregroundStyle(.tertiary)
                     }
                 }
@@ -138,8 +148,7 @@ struct FriendRequestsView: View {
                 } label: {
                     Text("Chấp nhận")
                         .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 34)
+                        .frame(maxWidth: .infinity, minHeight: 38)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.chatBLNPrimary)
@@ -152,8 +161,7 @@ struct FriendRequestsView: View {
                 } label: {
                     Text("Từ chối")
                         .font(.subheadline.weight(.medium))
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 34)
+                        .frame(maxWidth: .infinity, minHeight: 38)
                 }
                 .buttonStyle(.bordered)
                 .disabled(isBusy)
@@ -169,7 +177,7 @@ struct FriendRequestsView: View {
             AvatarView(
                 name: request.addresseeDisplayName,
                 avatarURL: settings.resolveAssetURL(request.addresseeAvatarUrl),
-                size: 48
+                size: 46
             )
 
             VStack(alignment: .leading, spacing: 3) {
@@ -184,8 +192,8 @@ struct FriendRequestsView: View {
                 }
 
                 let createdTime = ChatDateFormatter.formatConversationTime(request.createdAt)
-                Text(createdTime.isEmpty ? "Đang chờ xác nhận" : "Đã gửi • \(createdTime)")
-                    .font(.caption2)
+                Text(createdTime.isEmpty ? "Đang chờ xác nhận" : "Đã gửi · \(createdTime)")
+                    .font(.caption2.monospacedDigit())
                     .foregroundStyle(.tertiary)
             }
 
@@ -206,6 +214,7 @@ struct FriendRequestsView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .frame(minHeight: 36)
             .disabled(isBusy)
         }
         .padding(.vertical, 4)

@@ -91,7 +91,7 @@ struct EmojiPickerSheet: View {
         EmojiCategory(
             id: "hearts",
             title: "Trái tim",
-            systemImage: "heart.fill",
+            systemImage: "heart",
             items: [
                 EmojiEntry(symbol: "❤️", keywords: "tim do"),
                 EmojiEntry(symbol: "🧡", keywords: "tim cam"),
@@ -110,7 +110,7 @@ struct EmojiPickerSheet: View {
         EmojiCategory(
             id: "objects",
             title: "Đời sống",
-            systemImage: "cup.and.saucer.fill",
+            systemImage: "cup.and.saucer",
             items: [
                 EmojiEntry(symbol: "☕️", keywords: "ca phe coffee"),
                 EmojiEntry(symbol: "🧋", keywords: "tra sua"),
@@ -128,7 +128,7 @@ struct EmojiPickerSheet: View {
         )
     ]
 
-    private let gridColumns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 6)
+    private let gridColumns = Array(repeating: GridItem(.adaptive(minimum: 48), spacing: 10), count: 1)
 
     private var visibleEmojis: [EmojiEntry] {
         let keyword = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -162,14 +162,15 @@ struct EmojiPickerSheet: View {
                                     Label(category.title, systemImage: category.systemImage)
                                         .font(.footnote.weight(.semibold))
                                         .padding(.horizontal, 12)
-                                        .padding(.vertical, 8)
-                                        .foregroundStyle(isSelected ? Color.white : Color.primary)
+                                        .frame(minHeight: 36)
+                                        .foregroundStyle(isSelected ? Color.white : Color(.label))
                                         .background(
-                                            isSelected ? Color.chatBLNPrimary : Color(.secondarySystemGroupedBackground),
+                                            isSelected ? Color.chatBLNPrimary : Color(.tertiarySystemFill),
                                             in: Capsule()
                                         )
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityAddTraits(isSelected ? .isSelected : [])
                             }
                         }
                         .padding(.horizontal, 16)
@@ -182,25 +183,26 @@ struct EmojiPickerSheet: View {
                     ContentUnavailableView.search(text: searchText)
                 } else {
                     ScrollView {
-                        LazyVGrid(columns: gridColumns, spacing: 12) {
+                        LazyVGrid(columns: gridColumns, spacing: 10) {
                             ForEach(visibleEmojis) { entry in
                                 Button {
                                     onSelectEmoji(entry.symbol)
                                 } label: {
                                     Text(entry.symbol)
-                                        .font(.system(size: 30))
-                                        .frame(minWidth: 44, minHeight: 44)
+                                        .font(.title2)
+                                        .frame(minWidth: 48, minHeight: 48)
                                         .background(
                                             Color(.secondarySystemGroupedBackground),
                                             in: RoundedRectangle(cornerRadius: 12, style: .continuous)
                                         )
                                 }
                                 .buttonStyle(.plain)
-                                .accessibilityLabel("Biểu tượng \(entry.symbol)")
+                                .accessibilityLabel("Chèn biểu tượng \(entry.symbol)")
                             }
                         }
                         .padding(16)
                     }
+                    .background(Color(.systemGroupedBackground))
                 }
             }
             .searchable(text: $searchText, prompt: "Tìm biểu tượng cảm xúc...")

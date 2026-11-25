@@ -13,7 +13,7 @@ struct MainTabView: View {
                 chatStore: chatStore
             )
             .tabItem {
-                Label("Đoạn chat", systemImage: "bubble.left.and.bubble.right.fill")
+                Label("Đoạn chat", systemImage: "bubble.left.and.bubble.right")
             }
             .badge(chatStore.totalUnreadMessages)
             .tag(MainAppTab.conversations)
@@ -23,7 +23,7 @@ struct MainTabView: View {
                 chatStore: chatStore
             )
             .tabItem {
-                Label("Danh bạ", systemImage: "person.2.fill")
+                Label("Danh bạ", systemImage: "person.2")
             }
             .tag(MainAppTab.contacts)
 
@@ -43,10 +43,11 @@ struct MainTabView: View {
                 chatStore: chatStore
             )
             .tabItem {
-                Label("Hồ sơ", systemImage: "person.crop.circle.fill")
+                Label("Hồ sơ", systemImage: "person.crop.circle")
             }
             .tag(MainAppTab.profile)
         }
+        .tabViewStyle(.sidebarAdaptable)
         .tint(.chatBLNPrimary)
     }
 }

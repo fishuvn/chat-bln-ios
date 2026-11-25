@@ -79,6 +79,37 @@ final class APIClient {
         )
     }
 
+    func requestPasswordResetOtp(email: String) async throws -> ForgotPasswordOtpResponse {
+        try await request(
+            path: "/api/auth/forgot-password/request",
+            method: "POST",
+            body: ForgotPasswordRequestPayload(email: email),
+            requiresAuth: false
+        )
+    }
+
+    func verifyPasswordResetOtp(email: String, otp: String) async throws -> VerifyPasswordOtpResponse {
+        try await request(
+            path: "/api/auth/forgot-password/verify",
+            method: "POST",
+            body: VerifyPasswordOtpRequest(email: email, otp: otp),
+            requiresAuth: false
+        )
+    }
+
+    func resetPasswordWithOtp(
+        email: String,
+        otp: String,
+        newPassword: String
+    ) async throws -> ResetPasswordResponse {
+        try await request(
+            path: "/api/auth/forgot-password/reset",
+            method: "POST",
+            body: ResetPasswordRequestPayload(email: email, otp: otp, newPassword: newPassword),
+            requiresAuth: false
+        )
+    }
+
     // MARK: - Profile & Users
 
     func getMyProfile() async throws -> UserProfileResponse {
