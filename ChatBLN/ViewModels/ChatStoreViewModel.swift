@@ -440,7 +440,18 @@ final class ChatStoreViewModel {
             .replacingOccurrences(of: "^@+", with: "", options: .regularExpression)
         guard !clean.isEmpty else { return [] }
         let results = try await apiClient.searchUsers(keyword: clean)
-        return results.filter { $0.username.lowercased() != currentUsername.lowercased() }
+            .filter { $0.username.lowercased() != currentUsername.lowercased() }
+
+        let clearedUserIds = Set(
+            results
+                .filter { $0.isFriend != true && ($0.friendshipStatus ?? "").uppercased() != "PENDING" }
+                .map(\.id)
+        )
+        if !clearedUserIds.isEmpty {
+            sentRequests.removeAll { clearedUserIds.contains($0.addresseeId) }
+            receivedRequests.removeAll { clearedUserIds.contains($0.requesterId) }
+        }
+        return results
     }
 
     func friendshipRelation(for user: UserSearchResponse) -> UserFriendshipRelation {

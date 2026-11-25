@@ -75,6 +75,18 @@ struct AddFriendSheet: View {
                 guard !Task.isCancelled else { return }
                 await executeSearch(for: trimmedKeyword)
             }
+            .onChange(of: chatStore.sentRequests) { _, _ in
+                guard !trimmedKeyword.isEmpty else { return }
+                Task {
+                    await executeSearch(for: trimmedKeyword)
+                }
+            }
+            .onChange(of: chatStore.friends) { _, _ in
+                guard !trimmedKeyword.isEmpty else { return }
+                Task {
+                    await executeSearch(for: trimmedKeyword)
+                }
+            }
             .navigationTitle("Thêm bạn bè")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
