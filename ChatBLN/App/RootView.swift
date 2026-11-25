@@ -19,15 +19,15 @@ struct RootView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(.systemGroupedBackground))
             } else if authViewModel.isAuthenticated {
+                let activeUsername = authViewModel.currentProfile?.username ?? settings.cachedUser?.username ?? ""
                 MainTabView(
                     settings: settings,
                     authViewModel: authViewModel,
                     chatStore: chatStore
                 )
-                .task(id: authViewModel.sessionToken) {
-                    if let token = authViewModel.sessionToken,
-                       let username = authViewModel.currentProfile?.username ?? settings.cachedUser?.username {
-                        await chatStore.bootstrapSession(token: token, currentUsername: username)
+                .task(id: "\(authViewModel.sessionToken ?? "")|\(activeUsername)|\(settings.normalizedBaseURL)") {
+                    if let token = authViewModel.sessionToken, !token.isEmpty, !activeUsername.isEmpty {
+                        await chatStore.bootstrapSession(token: token, currentUsername: activeUsername)
                     }
                 }
             } else {

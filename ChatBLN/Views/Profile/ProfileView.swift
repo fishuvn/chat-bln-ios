@@ -104,7 +104,24 @@ struct ProfileView: View {
                     .disabled(isSavingProfile || fullName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
 
-                Section("Giao diện & Kết nối") {
+                Section("Trạng thái & Giao diện") {
+                    Picker(
+                        "Trạng thái hoạt động",
+                        selection: Binding(
+                            get: { settings.presenceMode },
+                            set: { newMode in
+                                Task {
+                                    await chatStore.setUserPresenceMode(newMode)
+                                }
+                            }
+                        )
+                    ) {
+                        ForEach(UserPresenceMode.allCases) { mode in
+                            Label(mode.title, systemImage: mode.iconName)
+                                .tag(mode)
+                        }
+                    }
+
                     Picker("Chế độ giao diện", selection: $settings.appearanceMode) {
                         ForEach(AppAppearanceMode.allCases) { mode in
                             Label(mode.title, systemImage: mode.iconName)
@@ -167,6 +184,12 @@ struct ProfileView: View {
                     apiClient: authViewModel.apiClient,
                     onSaved: {
                         chatStore.reconnectRealtimeIfAuthenticated()
+                        Task {
+                            await authViewModel.refreshProfile()
+                            await chatStore.loadConversations()
+                            await chatStore.loadFriends()
+                            await chatStore.loadFriendRequests()
+                        }
                     }
                 )
             }
@@ -193,7 +216,7 @@ struct ProfileView: View {
                         name: fullName.isEmpty ? (authViewModel.currentProfile?.displayName ?? "U") : fullName,
                         avatarURL: settings.resolveAssetURL(authViewModel.currentProfile?.avatarUrl),
                         size: 92,
-                        isOnline: true
+                        isOnline: settings.presenceMode != .offline
                     )
 
                     PhotosPicker(
@@ -224,13 +247,39 @@ struct ProfileView: View {
                     .accessibilityLabel("Đổi ảnh đại diện")
                 }
 
-                VStack(spacing: 3) {
+                VStack(spacing: 6) {
                     Text(authViewModel.currentProfile?.displayName ?? settings.cachedUser?.fullName ?? "Người dùng")
                         .font(.title3.weight(.bold))
 
-                    Text(chatStore.isRealtimeConnected ? "Đang kết nối Realtime STOMP" : "Đang chờ kết nối máy chủ")
-                        .font(.caption)
-                        .foregroundStyle(chatStore.isRealtimeConnected ? Color.green : .secondary)
+                    Menu {
+                        ForEach(UserPresenceMode.allCases) { mode in
+                            Button {
+                                Task {
+                                    await chatStore.setUserPresenceMode(mode)
+                                }
+                            } label: {
+                                Label(
+                                    mode.title,
+                                    systemImage: settings.presenceMode == mode ? "checkmark.circle.fill" : mode.iconName
+                                )
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(settings.presenceMode.dotColor)
+                                .frame(width: 9, height: 9)
+                            Text(settings.presenceMode.title)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.primary)
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color(.secondarySystemGroupedBackground), in: Capsule())
+                    }
                 }
             }
             .frame(maxWidth: .infinity)

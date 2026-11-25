@@ -22,24 +22,50 @@ struct ConversationsListView: View {
 
     var body: some View {
         NavigationStack(path: $chatStore.navigationPath) {
-            Group {
-                if chatStore.isLoadingConversations && chatStore.conversations.isEmpty {
-                    ProgressView("Đang tải danh sách trò chuyện...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if filteredConversations.isEmpty {
-                    emptyConversationsView
-                } else {
-                    List(filteredConversations) { item in
-                        NavigationLink(value: item) {
-                            ConversationRowView(
-                                item: item,
-                                currentUsername: chatStore.currentUsername,
-                                unreadCount: chatStore.unreadCountByConversation[item.id, default: 0],
-                                avatarURL: settings.resolveAssetURL(item.avatarUrl)
-                            )
+            VStack(spacing: 0) {
+                presenceControlHeader
+
+                if let errorBanner = chatStore.errorBanner {
+                    HStack(spacing: 10) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text(errorBanner)
+                            .font(.footnote)
+                            .foregroundStyle(.primary)
+                            .lineLimit(2)
+                        Spacer()
+                        Button("Tải lại") {
+                            Task {
+                                await chatStore.loadConversations()
+                            }
                         }
+                        .font(.footnote.weight(.semibold))
                     }
-                    .listStyle(.plain)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color.orange.opacity(0.14))
+                }
+
+                Group {
+                    if chatStore.isLoadingConversations && chatStore.conversations.isEmpty {
+                        ProgressView("Đang tải danh sách trò chuyện...")
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if filteredConversations.isEmpty {
+                        emptyConversationsView
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        List(filteredConversations) { item in
+                            NavigationLink(value: item) {
+                                ConversationRowView(
+                                    item: item,
+                                    currentUsername: chatStore.currentUsername,
+                                    unreadCount: chatStore.unreadCountByConversation[item.id, default: 0],
+                                    avatarURL: settings.resolveAssetURL(item.avatarUrl)
+                                )
+                            }
+                        }
+                        .listStyle(.plain)
+                    }
                 }
             }
             .navigationTitle("Đoạn chat")
@@ -52,9 +78,6 @@ struct ConversationsListView: View {
                 await chatStore.loadConversations()
             }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    realtimeStatusBadge
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showNewConversationSheet = true
@@ -82,16 +105,91 @@ struct ConversationsListView: View {
         }
     }
 
-    private var realtimeStatusBadge: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(chatStore.isRealtimeConnected ? Color.green : Color.orange)
-                .frame(width: 8, height: 8)
-            Text(chatStore.isRealtimeConnected ? "Trực tuyến" : "Đang nối lại")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
+    private var effectiveDotColor: Color {
+        if settings.presenceMode == .offline {
+            return UserPresenceMode.offline.dotColor
         }
-        .accessibilityElement(children: .combine)
+        return chatStore.isRealtimeConnected ? settings.presenceMode.dotColor : .orange
+    }
+
+    private var effectiveStatusText: String {
+        if settings.presenceMode == .offline {
+            return "Ẩn trạng thái (Ngoại tuyến)"
+        }
+        if !chatStore.isRealtimeConnected {
+            return "\(settings.presenceMode.shortTitle) · Đang kết nối..."
+        }
+        return settings.presenceMode.title
+    }
+
+    private var presenceControlHeader: some View {
+        HStack(spacing: 10) {
+            Menu {
+                Section("Đặt trạng thái hoạt động của bạn") {
+                    ForEach(UserPresenceMode.allCases) { mode in
+                        Button {
+                            Task {
+                                await chatStore.setUserPresenceMode(mode)
+                            }
+                        } label: {
+                            Label(
+                                mode.title,
+                                systemImage: settings.presenceMode == mode ? "checkmark.circle.fill" : mode.iconName
+                            )
+                        }
+                    }
+                }
+
+                Section {
+                    Button {
+                        Task {
+                            chatStore.reconnectRealtimeIfAuthenticated()
+                            await chatStore.loadConversations()
+                        }
+                    } label: {
+                        Label("Đồng bộ lại hội thoại & kết nối", systemImage: "arrow.clockwise")
+                    }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(effectiveDotColor)
+                        .frame(width: 10, height: 10)
+
+                    Text(effectiveStatusText)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Color(.secondarySystemGroupedBackground), in: Capsule())
+            }
+            .accessibilityLabel("Đổi trạng thái hoạt động, hiện tại \(effectiveStatusText)")
+
+            Spacer()
+
+            Button {
+                Task {
+                    await chatStore.loadConversations()
+                }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 34, height: 34)
+                    .background(Color(.secondarySystemGroupedBackground), in: Circle())
+            }
+            .disabled(chatStore.isLoadingConversations)
+            .accessibilityLabel("Tải lại danh sách cuộc trò chuyện")
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .padding(.bottom, 8)
     }
 
     @ViewBuilder

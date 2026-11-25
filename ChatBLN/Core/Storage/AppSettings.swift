@@ -2,6 +2,80 @@ import Foundation
 import Observation
 import SwiftUI
 
+enum UserPresenceMode: String, CaseIterable, Identifiable, Codable, Sendable {
+    case online = "online"
+    case away = "away"
+    case busy = "busy"
+    case offline = "offline"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .online:
+            return "Trực tuyến"
+        case .away:
+            return "Tạm vắng"
+        case .busy:
+            return "Đang bận"
+        case .offline:
+            return "Ẩn trạng thái (Ngoại tuyến)"
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .online:
+            return "Trực tuyến"
+        case .away:
+            return "Tạm vắng"
+        case .busy:
+            return "Đang bận"
+        case .offline:
+            return "Ngoại tuyến"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .online:
+            return "Đang hoạt động và nhận tin nhắn tức thì"
+        case .away:
+            return "Tạm rời máy, vẫn nhận tin nhắn mới"
+        case .busy:
+            return "Không làm phiền, tắt báo hiệu chưa đọc"
+        case .offline:
+            return "Ẩn chấm xanh trực tuyến với mọi người"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .online:
+            return "checkmark.circle.fill"
+        case .away:
+            return "clock.fill"
+        case .busy:
+            return "minus.circle.fill"
+        case .offline:
+            return "moon.zzz.fill"
+        }
+    }
+
+    var dotColor: Color {
+        switch self {
+        case .online:
+            return .green
+        case .away:
+            return .yellow
+        case .busy:
+            return .red
+        case .offline:
+            return Color(.systemGray)
+        }
+    }
+}
+
 enum AppAppearanceMode: String, CaseIterable, Identifiable, Codable, Sendable {
     case system = "system"
     case light = "light"
@@ -64,6 +138,7 @@ final class AppSettings {
     private enum Keys {
         static let baseURL = "chatbln.server.base_url"
         static let appearance = "chatbln.ui.appearance"
+        static let presenceMode = "chatbln.user.presence_mode"
         static let cachedUser = "chatbln.auth.cached_user"
     }
 
@@ -76,6 +151,12 @@ final class AppSettings {
     var appearanceMode: AppAppearanceMode {
         didSet {
             UserDefaults.standard.set(appearanceMode.rawValue, forKey: Keys.appearance)
+        }
+    }
+
+    var presenceMode: UserPresenceMode {
+        didSet {
+            UserDefaults.standard.set(presenceMode.rawValue, forKey: Keys.presenceMode)
         }
     }
 
@@ -99,6 +180,13 @@ final class AppSettings {
             self.appearanceMode = mode
         } else {
             self.appearanceMode = .system
+        }
+
+        if let rawPresence = UserDefaults.standard.string(forKey: Keys.presenceMode),
+           let pMode = UserPresenceMode(rawValue: rawPresence) {
+            self.presenceMode = pMode
+        } else {
+            self.presenceMode = .online
         }
 
         if let userData = UserDefaults.standard.data(forKey: Keys.cachedUser),

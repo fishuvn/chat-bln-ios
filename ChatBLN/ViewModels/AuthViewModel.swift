@@ -32,7 +32,6 @@ final class AuthViewModel {
             return
         }
 
-        sessionToken = savedToken
         if let cached = settings.cachedUser {
             currentProfile = UserProfileResponse(
                 id: cached.id,
@@ -52,10 +51,12 @@ final class AuthViewModel {
         do {
             let profile = try await apiClient.getMyProfile()
             applyProfile(profile)
+            sessionToken = savedToken
         } catch APIClientError.unauthorized {
             handleUnauthorizedSession()
         } catch {
             // Giữ phiên tạm đã lưu trong Keychain nếu máy chủ đang khởi động lại
+            sessionToken = savedToken
         }
     }
 
@@ -73,26 +74,26 @@ final class AuthViewModel {
         do {
             let auth = try await apiClient.login(username: cleanUsername, password: password)
             KeychainService.saveToken(auth.token)
-            sessionToken = auth.token
 
+            let fallback = UserProfileResponse(
+                id: auth.id,
+                username: auth.username,
+                fullName: auth.fullName,
+                email: nil,
+                phone: nil,
+                gender: nil,
+                dob: nil,
+                bio: nil,
+                avatarUrl: nil,
+                isOnline: true,
+                lastSeen: nil
+            )
+            // Gán hồ sơ người dùng TRƯỚC khi bật sessionToken để MainTabView có ngay username tải hội thoại
+            applyProfile(fallback)
             if let profile = try? await apiClient.getMyProfile() {
                 applyProfile(profile)
-            } else {
-                let fallback = UserProfileResponse(
-                    id: auth.id,
-                    username: auth.username,
-                    fullName: auth.fullName,
-                    email: nil,
-                    phone: nil,
-                    gender: nil,
-                    dob: nil,
-                    bio: nil,
-                    avatarUrl: nil,
-                    isOnline: true,
-                    lastSeen: nil
-                )
-                applyProfile(fallback)
             }
+            sessionToken = auth.token
             return true
         } catch {
             errorMessage = error.localizedDescription
@@ -108,26 +109,25 @@ final class AuthViewModel {
         do {
             let auth = try await apiClient.register(request)
             KeychainService.saveToken(auth.token)
-            sessionToken = auth.token
 
+            let fallback = UserProfileResponse(
+                id: auth.id,
+                username: auth.username,
+                fullName: auth.fullName ?? request.fullName,
+                email: request.email,
+                phone: request.phone,
+                gender: request.gender,
+                dob: request.dob,
+                bio: request.bio,
+                avatarUrl: nil,
+                isOnline: true,
+                lastSeen: nil
+            )
+            applyProfile(fallback)
             if let profile = try? await apiClient.getMyProfile() {
                 applyProfile(profile)
-            } else {
-                let fallback = UserProfileResponse(
-                    id: auth.id,
-                    username: auth.username,
-                    fullName: auth.fullName ?? request.fullName,
-                    email: request.email,
-                    phone: request.phone,
-                    gender: request.gender,
-                    dob: request.dob,
-                    bio: request.bio,
-                    avatarUrl: nil,
-                    isOnline: true,
-                    lastSeen: nil
-                )
-                applyProfile(fallback)
             }
+            sessionToken = auth.token
             return true
         } catch {
             errorMessage = error.localizedDescription

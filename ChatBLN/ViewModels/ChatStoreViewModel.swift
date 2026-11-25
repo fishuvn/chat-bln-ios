@@ -59,9 +59,14 @@ final class ChatStoreViewModel {
 
     func bootstrapSession(token: String, currentUsername: String) async {
         self.currentUsername = currentUsername
-        stompClient.subscribe(topic: "/topic/presence")
-        stompClient.subscribe(topic: "/topic/users/\(currentUsername)")
-        stompClient.connect(token: token)
+        if settings.presenceMode == .offline {
+            stompClient.disconnect()
+            _ = try? await apiClient.logout()
+        } else {
+            stompClient.subscribe(topic: "/topic/presence")
+            stompClient.subscribe(topic: "/topic/users/\(currentUsername)")
+            stompClient.connect(token: token)
+        }
 
         async let conversationsLoad: Void = loadConversations()
         async let friendsLoad: Void = loadFriends()
@@ -69,8 +74,27 @@ final class ChatStoreViewModel {
         _ = await (conversationsLoad, friendsLoad, requestsLoad)
     }
 
+    func setUserPresenceMode(_ mode: UserPresenceMode) async {
+        settings.presenceMode = mode
+        if mode == .offline {
+            stompClient.disconnect()
+            isRealtimeConnected = false
+            _ = try? await apiClient.logout()
+        } else {
+            if !isRealtimeConnected {
+                reconnectRealtimeIfAuthenticated()
+            }
+            await loadConversations()
+        }
+    }
+
     func reconnectRealtimeIfAuthenticated() {
         guard let token = KeychainService.readToken(), !token.isEmpty, !currentUsername.isEmpty else {
+            return
+        }
+        guard settings.presenceMode != .offline else {
+            stompClient.disconnect()
+            isRealtimeConnected = false
             return
         }
         stompClient.disconnect()
