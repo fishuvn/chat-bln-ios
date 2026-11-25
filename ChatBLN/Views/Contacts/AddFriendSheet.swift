@@ -136,12 +136,30 @@ struct AddFriendSheet: View {
                     .background(Color(.tertiarySystemFill), in: Capsule())
 
             case .sentPending:
-                Text("Đã gửi")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.chatBLNPrimary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.chatBLNPrimary.opacity(0.12), in: Capsule())
+                if let sentId = chatStore.sentRequests.first(where: { $0.addresseeId == user.id })?.id {
+                    Button(role: .destructive) {
+                        Task {
+                            await cancelSentRequest(friendshipId: sentId, user: user)
+                        }
+                    } label: {
+                        if isBusy {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text("Thu hồi")
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(isBusy)
+                } else {
+                    Text("Đã gửi")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.chatBLNPrimary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.chatBLNPrimary.opacity(0.12), in: Capsule())
+                }
 
             case .receivedPending(let friendshipId):
                 Button("Chấp nhận") {
@@ -221,6 +239,23 @@ struct AddFriendSheet: View {
             }
             isBannerError = false
             statusBanner = "Bạn và \(user.displayName) đã trở thành bạn bè!"
+        } catch {
+            isBannerError = true
+            statusBanner = error.localizedDescription
+        }
+    }
+
+    private func cancelSentRequest(friendshipId: Int64, user: UserSearchResponse) async {
+        processingUserIds.insert(user.id)
+        defer { processingUserIds.remove(user.id) }
+
+        do {
+            try await chatStore.cancelSentFriendRequest(friendshipId)
+            if let idx = results.firstIndex(where: { $0.id == user.id }) {
+                results[idx].friendshipStatus = nil
+            }
+            isBannerError = false
+            statusBanner = "Đã thu hồi lời mời kết bạn tới \(user.displayName)."
         } catch {
             isBannerError = true
             statusBanner = error.localizedDescription

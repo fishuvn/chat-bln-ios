@@ -21,6 +21,11 @@ struct UnfriendResponse: Codable, Hashable, Sendable {
     let targetUserId: Int64?
 }
 
+struct CancelFriendRequestResponse: Codable, Hashable, Sendable {
+    let cancelled: Bool?
+    let friendshipId: Int64?
+}
+
 struct FriendshipEventDto: Codable, Hashable, Sendable {
     let type: String?
     let actorUserId: Int64?
@@ -315,6 +320,9 @@ struct FriendshipResponse: Codable, Identifiable, Hashable, Sendable {
     let requesterFullName: String?
     let requesterAvatarUrl: String?
     let addresseeId: Int64
+    let addresseeUsername: String?
+    let addresseeFullName: String?
+    let addresseeAvatarUrl: String?
     var status: String
     let createdAt: String?
 
@@ -323,6 +331,13 @@ struct FriendshipResponse: Codable, Identifiable, Hashable, Sendable {
         if !trimmed.isEmpty { return trimmed }
         if let requesterUsername, !requesterUsername.isEmpty { return requesterUsername }
         return "Người dùng #\(requesterId)"
+    }
+
+    var addresseeDisplayName: String {
+        let trimmed = addresseeFullName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !trimmed.isEmpty { return trimmed }
+        if let addresseeUsername, !addresseeUsername.isEmpty { return addresseeUsername }
+        return "Người nhận #\(addresseeId)"
     }
 }
 

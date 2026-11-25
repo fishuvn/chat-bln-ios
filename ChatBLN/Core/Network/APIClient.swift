@@ -237,6 +237,13 @@ final class APIClient {
         )
     }
 
+    func cancelSentFriendRequest(friendshipId: Int64) async throws -> CancelFriendRequestResponse {
+        try await request(
+            path: "/api/friends/requests/\(friendshipId)",
+            method: "DELETE"
+        )
+    }
+
     func unfriend(targetUserId: Int64) async throws -> UnfriendResponse {
         try await request(
             path: "/api/friends/\(targetUserId)",

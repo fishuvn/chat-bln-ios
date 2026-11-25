@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 private struct FullScreenImageItem: Identifiable {
@@ -656,8 +657,20 @@ struct ChatRoomView: View {
             }
 
             let contentType = item.supportedContentTypes.first
-            let mimeType = contentType?.preferredMIMEType ?? fallbackMime
-            let ext = contentType?.preferredFilenameExtension ?? fallbackExtension
+            var uploadData = data
+            var mimeType = contentType?.preferredMIMEType ?? fallbackMime
+            var ext = (contentType?.preferredFilenameExtension ?? fallbackExtension).lowercased()
+
+            // Chuyển đổi ảnh HEIC/HEIF sang JPEG để mọi trình duyệt Web & Android đều xem trực tiếp được
+            if ext == "heic" || ext == "heif" || mimeType.contains("heic") || mimeType.contains("heif") {
+                if let uiImage = UIImage(data: data),
+                   let jpegData = uiImage.jpegData(compressionQuality: 0.85) {
+                    uploadData = jpegData
+                    mimeType = "image/jpeg"
+                    ext = "jpg"
+                }
+            }
+
             let timestamp = Int(Date().timeIntervalSince1970)
             let fileName = "media_\(timestamp).\(ext)"
             let caption = draftText
@@ -665,7 +678,7 @@ struct ChatRoomView: View {
 
             try await chatStore.uploadAndSendAttachment(
                 conversationId: conversationId,
-                data: data,
+                data: uploadData,
                 fileName: fileName,
                 mimeType: mimeType,
                 caption: caption

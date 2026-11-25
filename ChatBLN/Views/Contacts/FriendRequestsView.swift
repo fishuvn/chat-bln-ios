@@ -163,29 +163,50 @@ struct FriendRequestsView: View {
     }
 
     private func sentRequestRow(_ request: FriendshipResponse) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "person.crop.circle.badge.clock")
-                .font(.system(size: 34))
-                .foregroundStyle(Color.chatBLNPrimary)
+        let isBusy = processingIds.contains(request.id)
+
+        return HStack(spacing: 12) {
+            AvatarView(
+                name: request.addresseeDisplayName,
+                avatarURL: settings.resolveAssetURL(request.addresseeAvatarUrl),
+                size: 48
+            )
 
             VStack(alignment: .leading, spacing: 3) {
-                Text("Người nhận ID #\(request.addresseeId)")
+                Text(request.addresseeDisplayName)
                     .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+
+                if let username = request.addresseeUsername, !username.isEmpty {
+                    Text("@\(username)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 let createdTime = ChatDateFormatter.formatConversationTime(request.createdAt)
                 Text(createdTime.isEmpty ? "Đang chờ xác nhận" : "Đã gửi • \(createdTime)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
 
             Spacer()
 
-            Text("Đang chờ")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.orange)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(Color.orange.opacity(0.12), in: Capsule())
+            Button(role: .destructive) {
+                Task {
+                    await handleCancelSent(request)
+                }
+            } label: {
+                if isBusy {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Text("Thu hồi")
+                        .font(.caption.weight(.semibold))
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(isBusy)
         }
         .padding(.vertical, 4)
     }
@@ -212,6 +233,20 @@ struct FriendRequestsView: View {
             try await chatStore.rejectFriendRequest(request.id)
             isFeedbackError = false
             feedbackMessage = "Đã từ chối lời mời kết bạn."
+        } catch {
+            isFeedbackError = true
+            feedbackMessage = error.localizedDescription
+        }
+    }
+
+    private func handleCancelSent(_ request: FriendshipResponse) async {
+        processingIds.insert(request.id)
+        defer { processingIds.remove(request.id) }
+
+        do {
+            try await chatStore.cancelSentFriendRequest(request.id)
+            isFeedbackError = false
+            feedbackMessage = "Đã thu hồi lời mời kết bạn tới \(request.addresseeDisplayName)."
         } catch {
             isFeedbackError = true
             feedbackMessage = error.localizedDescription

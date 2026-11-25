@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 struct ProfileView: View {
@@ -166,6 +167,9 @@ struct ProfileView: View {
                 loadFieldsFromProfile()
             }
             .onAppear {
+                loadFieldsFromProfile()
+            }
+            .onChange(of: authViewModel.currentProfile?.id) { _, _ in
                 loadFieldsFromProfile()
             }
             .onChange(of: authViewModel.currentProfile?.avatarUrl) { _, _ in
@@ -356,12 +360,24 @@ struct ProfileView: View {
             }
 
             let utType = item.supportedContentTypes.first
-            let mime = utType?.preferredMIMEType ?? "image/jpeg"
-            let ext = utType?.preferredFilenameExtension ?? "jpg"
+            var uploadData = data
+            var mime = utType?.preferredMIMEType ?? "image/jpeg"
+            var ext = (utType?.preferredFilenameExtension ?? "jpg").lowercased()
+
+            // Chuẩn hóa ảnh HEIC/HEIF/TIFF sang JPEG để hiển thị đồng bộ trên Web & Android
+            if ext == "heic" || ext == "heif" || ext == "tiff" || mime.contains("heic") || mime.contains("heif") {
+                if let uiImage = UIImage(data: data),
+                   let jpegData = uiImage.jpegData(compressionQuality: 0.85) {
+                    uploadData = jpegData
+                    mime = "image/jpeg"
+                    ext = "jpg"
+                }
+            }
+
             let fileName = "avatar_\(Int(Date().timeIntervalSince1970)).\(ext)"
 
             try await authViewModel.uploadAndSaveAvatar(
-                data: data,
+                data: uploadData,
                 fileName: fileName,
                 mimeType: mime
             )

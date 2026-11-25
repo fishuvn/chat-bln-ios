@@ -508,6 +508,19 @@ final class ChatStoreViewModel {
         receivedRequests.removeAll { $0.id == friendshipId }
     }
 
+    func cancelSentFriendRequest(_ friendshipId: Int64) async throws {
+        let targetUserId = sentRequests.first(where: { $0.id == friendshipId })?.addresseeId
+        _ = try await apiClient.cancelSentFriendRequest(friendshipId: friendshipId)
+        sentRequests.removeAll { $0.id == friendshipId }
+        if let targetUserId {
+            for idx in conversations.indices {
+                if !conversations[idx].isGroup && conversations[idx].targetUserId == targetUserId {
+                    conversations[idx].friendshipStatus = nil
+                }
+            }
+        }
+    }
+
     // MARK: - Realtime Event Handling
 
     private func wireRealtimeCallbacks() {
