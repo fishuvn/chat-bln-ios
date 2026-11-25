@@ -2,6 +2,27 @@
 
 Quy ước phiên bản: `1.0.x` / `1.x.x` cho các bản cập nhật và sửa lỗi nhỏ (mỗi bậc tối đa `10`, ví dụ `1.0.10` → `1.1.0`); `x.0.0` dành cho thay đổi lớn về kiến trúc, ngôn ngữ lập trình, nâng phiên bản HĐH tối thiểu hoặc đại tu UI/UX.
 
+## v1.0.1 — Chat BLN iOS (2026-11-26 00:43 UTC+7)
+
+- **Phiên bản**: `v1.0.1` (Build `10001`)
+- **Phân loại**: Bản cập nhật & sửa lỗi nhỏ (`1.x.x`, giới hạn tối đa `.10`)
+
+### ✨ Tính năng mới
+- feat(ios): sync ONLINE/IDLE/SLEEP/DND/OFFLINE presence modes with backend and render live status badges (`e66800e`)
+- feat(ios): add group members list and unfriend/re-friend support (`3668ad6`)
+- feat(ios): add single and multi-select message deletion with realtime sync (`3e60a9e`)
+- feat(ios): add persistent conversation deletion via DELETE /api/conversations/:id (`3b49fbb`)
+- feat(ios): init SwiftUI iOS 18+ app with Xcode IPA CI/CD (`8f26291`)
+
+### 🐛 Sửa lỗi
+- fix(ios): show sent friend request recipient details, support withdrawing requests, and convert HEIC media to JPEG (`c26ad02`)
+- fix(ios): refresh search state when friend request is rejected (`7637988`)
+- fix(ios): fix login bootstrap race and add full interactive status selector (`b0bf15e`)
+- fix(ios): fix ATS policy and default to https://chat-bln.fishu.io.vn (`d29c7fb`)
+
+### 🔧 Cải tiến & Bảo trì
+- ci(release): auto-bump version (max .10 per slot), generate changelog, and publish iOS IPA Release on build (`ce9ae5f`)
+
 ## v1.0.0 — Chat BLN iOS (Bản nền tảng ban đầu)
 
 - **Phiên bản**: `v1.0.0` (Build `10000`)
