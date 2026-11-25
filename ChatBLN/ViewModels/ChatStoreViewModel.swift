@@ -234,6 +234,20 @@ final class ChatStoreViewModel {
         conversations.first(where: { $0.id == id })
     }
 
+    func deleteConversation(conversationId: Int64) async throws {
+        _ = try await apiClient.deleteConversation(conversationId: conversationId)
+        stompClient.unsubscribe(topic: "/topic/conversations/\(conversationId)")
+        conversations.removeAll { $0.id == conversationId }
+        messagesByConversation.removeValue(forKey: conversationId)
+        hasMoreByConversation.removeValue(forKey: conversationId)
+        oldestMessageIdByConversation.removeValue(forKey: conversationId)
+        unreadCountByConversation.removeValue(forKey: conversationId)
+        if activeConversationId == conversationId {
+            activeConversationId = nil
+        }
+        navigationPath.removeAll { $0.id == conversationId }
+    }
+
     // MARK: - Messages & Attachments
 
     func enterChatRoom(conversationId: Int64) async {

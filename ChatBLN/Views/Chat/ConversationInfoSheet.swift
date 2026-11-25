@@ -7,6 +7,11 @@ struct ConversationInfoSheet: View {
     let conversation: ConversationItemResponse
     let messages: [MessageDto]
     let settings: AppSettings
+    var onDeleteConversation: (() async throws -> Void)? = nil
+
+    @State private var showDeleteConfirm: Bool = false
+    @State private var isDeleting: Bool = false
+    @State private var deleteError: String?
 
     private var sharedMediaMessages: [MessageDto] {
         messages.reversed().filter { msg in
@@ -161,6 +166,52 @@ struct ConversationInfoSheet: View {
                         }
                     }
                 }
+
+                if onDeleteConversation != nil {
+                    Section {
+                        if let deleteError {
+                            Text(deleteError)
+                                .font(.footnote)
+                                .foregroundStyle(.red)
+                        }
+
+                        Button(role: .destructive) {
+                            showDeleteConfirm = true
+                        } label: {
+                            HStack(spacing: 10) {
+                                if isDeleting {
+                                    ProgressView()
+                                } else {
+                                    Image(systemName: "trash.fill")
+                                }
+                                Text(isDeleting ? "Đang xóa..." : "Xóa lịch sử trò chuyện")
+                                    .fontWeight(.semibold)
+                            }
+                        }
+                        .disabled(isDeleting)
+                    }
+                }
+            }
+            .confirmationDialog(
+                "Xóa cuộc trò chuyện và toàn bộ lịch sử tin nhắn với \"\(conversation.displayName)\"?",
+                isPresented: $showDeleteConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Xóa lịch sử trò chuyện", role: .destructive) {
+                    guard let onDeleteConversation else { return }
+                    isDeleting = true
+                    deleteError = nil
+                    Task {
+                        do {
+                            try await onDeleteConversation()
+                            dismiss()
+                        } catch {
+                            deleteError = error.localizedDescription
+                        }
+                        isDeleting = false
+                    }
+                }
+                Button("Huỷ", role: .cancel) {}
             }
             .navigationTitle("Chi tiết hội thoại")
             .navigationBarTitleDisplayMode(.inline)

@@ -160,7 +160,10 @@ struct ChatRoomView: View {
             ConversationInfoSheet(
                 conversation: conversation,
                 messages: allMessages,
-                settings: settings
+                settings: settings,
+                onDeleteConversation: {
+                    try await chatStore.deleteConversation(conversationId: conversationId)
+                }
             )
         }
         .fullScreenCover(item: $fullScreenImage) { item in

@@ -11,6 +11,11 @@ struct LogoutResponse: Codable, Hashable, Sendable {
     let status: String?
 }
 
+struct DeleteConversationResponse: Codable, Hashable, Sendable {
+    let deleted: Bool?
+    let conversationId: Int64?
+}
+
 struct APIErrorResponse: Codable, Hashable, Sendable {
     let status: Int?
     let error: String?

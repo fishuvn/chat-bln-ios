@@ -119,6 +119,13 @@ final class APIClient {
         )
     }
 
+    func deleteConversation(conversationId: Int64) async throws -> DeleteConversationResponse {
+        try await request(
+            path: "/api/conversations/\(conversationId)",
+            method: "DELETE"
+        )
+    }
+
     func getMessages(
         conversationId: Int64,
         before: Int64? = nil,

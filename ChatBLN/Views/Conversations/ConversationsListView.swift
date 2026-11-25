@@ -63,6 +63,15 @@ struct ConversationsListView: View {
                                     avatarURL: settings.resolveAssetURL(item.avatarUrl)
                                 )
                             }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    Task {
+                                        try? await chatStore.deleteConversation(conversationId: item.id)
+                                    }
+                                } label: {
+                                    Label("Xóa", systemImage: "trash")
+                                }
+                            }
                         }
                         .listStyle(.plain)
                     }
