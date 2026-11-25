@@ -7,6 +7,7 @@ struct ConversationsListView: View {
 
     @State private var searchText: String = ""
     @State private var showNewConversationSheet: Bool = false
+    @State private var showJoinGroupSheet: Bool = false
 
     private var filteredConversations: [ConversationItemResponse] {
         let keyword = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -69,7 +70,12 @@ struct ConversationsListView: View {
                                         try? await chatStore.deleteConversation(conversationId: item.id)
                                     }
                                 } label: {
-                                    Label("Xóa", systemImage: "trash")
+                                    Label(
+                                        item.isGroup
+                                            ? (item.isCurrentUserGroupAdmin ? "Giải tán" : "Rời nhóm")
+                                            : "Xóa",
+                                        systemImage: "trash"
+                                    )
                                 }
                             }
                         }
@@ -87,7 +93,15 @@ struct ConversationsListView: View {
                 await chatStore.loadConversations()
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        showJoinGroupSheet = true
+                    } label: {
+                        Image(systemName: "link.badge.plus")
+                            .fontWeight(.semibold)
+                    }
+                    .accessibilityLabel("Tham gia nhóm bằng link hoặc mã mời")
+
                     Button {
                         showNewConversationSheet = true
                     } label: {
@@ -107,6 +121,17 @@ struct ConversationsListView: View {
             }
             .sheet(isPresented: $showNewConversationSheet) {
                 NewConversationSheet(
+                    settings: settings,
+                    chatStore: chatStore,
+                    onRequestJoinByInvite: {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                            showJoinGroupSheet = true
+                        }
+                    }
+                )
+            }
+            .sheet(isPresented: $showJoinGroupSheet) {
+                JoinGroupSheet(
                     settings: settings,
                     chatStore: chatStore
                 )
@@ -209,15 +234,24 @@ struct ConversationsListView: View {
             ContentUnavailableView {
                 Label("Chưa có cuộc trò chuyện nào", systemImage: "bubble.left.and.bubble.right")
             } description: {
-                Text("Bắt đầu nhắn tin riêng với bạn bè hoặc tạo nhóm trò chuyện mới.")
+                Text("Bắt đầu nhắn tin riêng với bạn bè, tạo nhóm mới hoặc tham gia nhóm qua link mời.")
             } actions: {
-                Button {
-                    showNewConversationSheet = true
-                } label: {
-                    Label("Tạo cuộc trò chuyện", systemImage: "plus.bubble.fill")
+                VStack(spacing: 10) {
+                    Button {
+                        showNewConversationSheet = true
+                    } label: {
+                        Label("Tạo cuộc trò chuyện", systemImage: "plus.bubble.fill")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.chatBLNPrimary)
+
+                    Button {
+                        showJoinGroupSheet = true
+                    } label: {
+                        Label("Tham gia nhóm bằng link / mã mời", systemImage: "link.badge.plus")
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.chatBLNPrimary)
             }
         }
     }
@@ -228,6 +262,11 @@ private struct ConversationRowView: View {
     let currentUsername: String
     let unreadCount: Int
     let avatarURL: URL?
+
+    private var pendingJoinCount: Int {
+        guard item.isGroup, item.canCurrentUserManageGroupRequests else { return 0 }
+        return max(0, item.pendingJoinRequestCount ?? 0)
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -241,7 +280,13 @@ private struct ConversationRowView: View {
             )
 
             VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    if item.isGroup, item.groupVisibility != nil {
+                        Image(systemName: item.resolvedGroupVisibility.iconName)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
                     Text(item.displayName)
                         .font(.body.weight(unreadCount > 0 ? .bold : .semibold))
                         .foregroundStyle(.primary)
@@ -256,7 +301,7 @@ private struct ConversationRowView: View {
                     }
                 }
 
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     Text(previewLine)
                         .font(.subheadline)
                         .fontWeight(unreadCount > 0 ? .medium : .regular)
@@ -264,6 +309,15 @@ private struct ConversationRowView: View {
                         .lineLimit(1)
 
                     Spacer(minLength: 4)
+
+                    if pendingJoinCount > 0 {
+                        Text("\(pendingJoinCount) chờ duyệt")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(Color.orange.opacity(0.14), in: Capsule())
+                    }
 
                     if unreadCount > 0 {
                         Text(unreadCount > 99 ? "99+" : "\(unreadCount)")

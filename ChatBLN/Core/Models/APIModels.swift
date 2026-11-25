@@ -1,5 +1,113 @@
 import Foundation
 
+// MARK: - Group Role & Visibility Enums
+
+enum GroupRole: String, CaseIterable, Codable, Hashable, Sendable {
+    case admin = "ADMIN"
+    case deputy = "DEPUTY"
+    case member = "MEMBER"
+
+    static func fromServer(_ raw: String?) -> GroupRole {
+        switch (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased() {
+        case "ADMIN":
+            return .admin
+        case "DEPUTY":
+            return .deputy
+        default:
+            return .member
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .admin:
+            return "Trưởng nhóm"
+        case .deputy:
+            return "Phó nhóm"
+        case .member:
+            return "Thành viên"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .admin:
+            return "crown.fill"
+        case .deputy:
+            return "shield.lefthalf.filled"
+        case .member:
+            return "person.fill"
+        }
+    }
+
+    var canManageInviteAndRequests: Bool {
+        self == .admin || self == .deputy
+    }
+
+    var sortPriority: Int {
+        switch self {
+        case .admin:
+            return 0
+        case .deputy:
+            return 1
+        case .member:
+            return 2
+        }
+    }
+}
+
+enum GroupVisibility: String, CaseIterable, Identifiable, Codable, Hashable, Sendable {
+    case publicGroup = "PUBLIC"
+    case privateGroup = "PRIVATE"
+
+    var id: String { rawValue }
+
+    static func fromServer(_ raw: String?) -> GroupVisibility {
+        switch (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased() {
+        case "PUBLIC":
+            return .publicGroup
+        default:
+            return .privateGroup
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .publicGroup:
+            return "Nhóm công khai"
+        case .privateGroup:
+            return "Nhóm riêng tư"
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .publicGroup:
+            return "Công khai"
+        case .privateGroup:
+            return "Riêng tư"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .publicGroup:
+            return "globe.americas.fill"
+        case .privateGroup:
+            return "lock.fill"
+        }
+    }
+
+    var helperCaption: String {
+        switch self {
+        case .publicGroup:
+            return "Ai có link hoặc mã mời đều có thể tham gia nhóm ngay lập tức."
+        case .privateGroup:
+            return "Người có link hoặc mã mời cần gửi yêu cầu và chờ Trưởng nhóm / Phó nhóm phê duyệt."
+        }
+    }
+}
+
 // MARK: - Health & Generic Responses
 
 struct HealthResponse: Codable, Hashable, Sendable {
@@ -30,6 +138,7 @@ struct FriendshipEventDto: Codable, Hashable, Sendable {
     let type: String?
     let actorUserId: Int64?
     let targetUserId: Int64?
+    let conversationId: Int64?
 }
 
 struct GroupMemberDto: Codable, Identifiable, Hashable, Sendable {
@@ -37,7 +146,7 @@ struct GroupMemberDto: Codable, Identifiable, Hashable, Sendable {
     let username: String
     let fullName: String?
     var avatarUrl: String?
-    let role: String?
+    var role: String?
     var isOnline: Bool?
     var presenceStatus: String? = nil
     var lastSeen: String?
@@ -48,8 +157,86 @@ struct GroupMemberDto: Codable, Identifiable, Hashable, Sendable {
         return trimmed.isEmpty ? username : trimmed
     }
 
+    var resolvedRole: GroupRole {
+        GroupRole.fromServer(role)
+    }
+
     var isAdmin: Bool {
-        (role ?? "").uppercased() == "ADMIN"
+        resolvedRole == .admin
+    }
+
+    var isDeputy: Bool {
+        resolvedRole == .deputy
+    }
+}
+
+// MARK: - Group Management & Invite DTOs
+
+struct UpdateGroupVisibilityRequest: Codable, Hashable, Sendable {
+    let groupVisibility: String
+}
+
+struct RegenerateInviteCodeResponse: Codable, Hashable, Sendable {
+    let conversationId: Int64
+    let inviteCode: String
+    let groupVisibility: String?
+}
+
+struct UpdateGroupMemberRoleRequest: Codable, Hashable, Sendable {
+    let role: String
+}
+
+struct TransferGroupLeaderRequest: Codable, Hashable, Sendable {
+    let newLeaderUserId: Int64
+}
+
+struct GroupInvitePreviewResponse: Codable, Hashable, Sendable {
+    let conversationId: Int64
+    let name: String
+    let groupVisibility: String
+    let inviteCode: String
+    let memberCount: Int
+    var alreadyMember: Bool
+    var joinStatus: String
+
+    var resolvedVisibility: GroupVisibility {
+        GroupVisibility.fromServer(groupVisibility)
+    }
+
+    var isPendingApproval: Bool {
+        joinStatus.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() == "PENDING"
+    }
+
+    var isAlreadyJoined: Bool {
+        alreadyMember || joinStatus.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() == "MEMBER"
+    }
+}
+
+struct JoinGroupResponse: Codable, Hashable, Sendable {
+    let conversationId: Int64
+    let name: String?
+    let groupVisibility: String?
+    let status: String
+    let message: String?
+
+    var normalizedStatus: String {
+        status.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+    }
+}
+
+struct GroupJoinRequestDto: Codable, Identifiable, Hashable, Sendable {
+    let id: Int64
+    let conversationId: Int64
+    let userId: Int64
+    let username: String
+    let fullName: String?
+    let avatarUrl: String?
+    var status: String
+    let createdAt: String?
+
+    var displayName: String {
+        let trimmed = fullName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? username : trimmed
     }
 }
 
@@ -175,6 +362,9 @@ struct ConversationItemResponse: Codable, Identifiable, Hashable, Sendable {
     var lastMessageSenderName: String?
     var lastMessageSenderUsername: String?
     var lastMessageTime: String?
+    var groupVisibility: String? = nil
+    var inviteCode: String? = nil
+    var pendingJoinRequestCount: Int? = nil
     var currentUserRole: String? = nil
     var memberCount: Int? = nil
     var members: [GroupMemberDto]? = nil
@@ -185,8 +375,24 @@ struct ConversationItemResponse: Codable, Identifiable, Hashable, Sendable {
         type.uppercased() == "GROUP"
     }
 
+    var resolvedGroupRole: GroupRole {
+        GroupRole.fromServer(currentUserRole)
+    }
+
+    var resolvedGroupVisibility: GroupVisibility {
+        GroupVisibility.fromServer(groupVisibility)
+    }
+
     var isCurrentUserGroupAdmin: Bool {
-        (currentUserRole ?? "").uppercased() == "ADMIN"
+        resolvedGroupRole == .admin
+    }
+
+    var isCurrentUserGroupDeputy: Bool {
+        resolvedGroupRole == .deputy
+    }
+
+    var canCurrentUserManageGroupRequests: Bool {
+        resolvedGroupRole.canManageInviteAndRequests
     }
 
     var isUnfriendedPrivate: Bool {
@@ -212,6 +418,7 @@ struct CreatePrivateConversationRequest: Codable, Hashable, Sendable {
 struct CreateGroupConversationRequest: Codable, Hashable, Sendable {
     let name: String
     let memberIds: [Int64]
+    let groupVisibility: String
 }
 
 struct ConversationResponse: Codable, Identifiable, Hashable, Sendable {
@@ -220,6 +427,10 @@ struct ConversationResponse: Codable, Identifiable, Hashable, Sendable {
     let type: String
     let createdById: Int64?
     let createdAt: String?
+    var groupVisibility: String? = nil
+    var inviteCode: String? = nil
+    var pendingJoinRequestCount: Int? = nil
+    var currentUserRole: String? = nil
 
     var isGroup: Bool {
         type.uppercased() == "GROUP"

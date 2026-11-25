@@ -7,6 +7,62 @@ struct ExtractedMessageLink: Hashable, Sendable {
     let host: String
 }
 
+enum GroupInviteLinkParser {
+    static let canonicalWebOrigin = "https://chat-bln.fishu.io.vn"
+    private static let joinPathPattern = #"\/join\/([A-Za-z0-9_-]+)"#
+    private static let rawCodePattern = #"^[A-Za-z0-9_-]{4,64}$"#
+
+    static func shareURLString(for inviteCode: String) -> String {
+        let clean = inviteCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        return "\(canonicalWebOrigin)/join/\(clean)"
+    }
+
+    static func extractInviteCode(from rawInput: String?) -> String? {
+        guard let trimmed = rawInput?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+
+        if let joinRegex = try? NSRegularExpression(pattern: joinPathPattern, options: [.caseInsensitive]) {
+            let ns = trimmed as NSString
+            let range = NSRange(location: 0, length: ns.length)
+            if let match = joinRegex.firstMatch(in: trimmed, options: [], range: range),
+               match.numberOfRanges >= 2 {
+                let code = ns.substring(with: match.range(at: 1))
+                if !code.isEmpty {
+                    return code
+                }
+            }
+        }
+
+        let cleanedCode = trimmed
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/#? "))
+        if let codeRegex = try? NSRegularExpression(pattern: rawCodePattern, options: []) {
+            let ns = cleanedCode as NSString
+            let range = NSRange(location: 0, length: ns.length)
+            if codeRegex.firstMatch(in: cleanedCode, options: [], range: range) != nil {
+                return cleanedCode
+            }
+        }
+        return nil
+    }
+
+    static func extractInviteCodeFromMessageText(_ rawText: String?) -> String? {
+        guard let rawText, !rawText.isEmpty,
+              let joinRegex = try? NSRegularExpression(pattern: joinPathPattern, options: [.caseInsensitive]) else {
+            return nil
+        }
+        let ns = rawText as NSString
+        let range = NSRange(location: 0, length: ns.length)
+        guard let match = joinRegex.firstMatch(in: rawText, options: [], range: range),
+              match.numberOfRanges >= 2 else {
+            return nil
+        }
+        let code = ns.substring(with: match.range(at: 1))
+        return code.hasPrefix("grp_") || !code.isEmpty ? code : nil
+    }
+}
+
 enum MarkdownMessageFormatter {
     private static let tokenPattern = #"(\[[^\]]+\]\(https?:\/\/[^\s)]+\)|https?:\/\/[^\s<>"']+)"#
     private static let markdownLinkPattern = #"^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$"#

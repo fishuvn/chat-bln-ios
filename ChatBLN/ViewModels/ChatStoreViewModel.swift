@@ -28,6 +28,7 @@ final class ChatStoreViewModel {
     var conversations: [ConversationItemResponse] = []
     var messagesByConversation: [Int64: [MessageDto]] = [:]
     var groupMembersByConversation: [Int64: [GroupMemberDto]] = [:]
+    var groupJoinRequestsByConversation: [Int64: [GroupJoinRequestDto]] = [:]
     var hasMoreByConversation: [Int64: Bool] = [:]
     var oldestMessageIdByConversation: [Int64: Int64] = [:]
     var unreadCountByConversation: [Int64: Int] = [:]
@@ -100,6 +101,7 @@ final class ChatStoreViewModel {
         conversations = []
         messagesByConversation = [:]
         groupMembersByConversation = [:]
+        groupJoinRequestsByConversation = [:]
         hasMoreByConversation = [:]
         oldestMessageIdByConversation = [:]
         unreadCountByConversation = [:]
@@ -114,7 +116,7 @@ final class ChatStoreViewModel {
         errorBanner = nil
     }
 
-    // MARK: - Conversations
+    // MARK: - Conversations & Group Management
 
     func loadConversations() async {
         isLoadingConversations = true
@@ -183,15 +185,23 @@ final class ChatStoreViewModel {
         }
     }
 
-    func createGroupChat(name: String, memberIds: [Int64]) async -> ConversationItemResponse? {
+    func createGroupChat(
+        name: String,
+        memberIds: [Int64],
+        visibility: GroupVisibility = .privateGroup
+    ) async -> ConversationItemResponse? {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty, !memberIds.isEmpty else {
-            errorBanner = "Vui lòng nhập tên nhóm và chọn ít nhất 1 thành viên."
+        guard !trimmedName.isEmpty else {
+            errorBanner = "Vui lòng nhập tên nhóm trò chuyện."
             return nil
         }
 
         do {
-            let created = try await apiClient.createGroupConversation(name: trimmedName, memberIds: memberIds)
+            let created = try await apiClient.createGroupConversation(
+                name: trimmedName,
+                memberIds: memberIds,
+                groupVisibility: visibility.rawValue
+            )
             await loadConversations()
             if let matched = conversations.first(where: { $0.id == created.id }) {
                 openConversation(matched)
@@ -214,7 +224,12 @@ final class ChatStoreViewModel {
                 lastMessage: nil,
                 lastMessageSenderName: nil,
                 lastMessageSenderUsername: nil,
-                lastMessageTime: created.createdAt
+                lastMessageTime: created.createdAt,
+                groupVisibility: created.groupVisibility ?? visibility.rawValue,
+                inviteCode: created.inviteCode,
+                pendingJoinRequestCount: 0,
+                currentUserRole: created.currentUserRole ?? GroupRole.admin.rawValue,
+                memberCount: memberIds.count + 1
             )
             conversations.insert(synthesized, at: 0)
             openConversation(synthesized)
@@ -235,6 +250,7 @@ final class ChatStoreViewModel {
         conversations.removeAll { $0.id == conversationId }
         messagesByConversation.removeValue(forKey: conversationId)
         groupMembersByConversation.removeValue(forKey: conversationId)
+        groupJoinRequestsByConversation.removeValue(forKey: conversationId)
         hasMoreByConversation.removeValue(forKey: conversationId)
         oldestMessageIdByConversation.removeValue(forKey: conversationId)
         unreadCountByConversation.removeValue(forKey: conversationId)
@@ -242,6 +258,142 @@ final class ChatStoreViewModel {
             activeConversationId = nil
         }
         navigationPath.removeAll { $0.id == conversationId }
+    }
+
+    func updateGroupVisibility(conversationId: Int64, visibility: GroupVisibility) async throws {
+        let updated = try await apiClient.updateGroupVisibility(
+            conversationId: conversationId,
+            groupVisibility: visibility.rawValue
+        )
+        if let idx = conversations.firstIndex(where: { $0.id == conversationId }) {
+            conversations[idx].groupVisibility = updated.groupVisibility ?? visibility.rawValue
+            if let code = updated.inviteCode, !code.isEmpty {
+                conversations[idx].inviteCode = code
+            }
+        }
+        await loadConversations()
+        if visibility == .privateGroup {
+            await loadGroupJoinRequests(conversationId: conversationId)
+        }
+    }
+
+    @discardableResult
+    func regenerateGroupInviteCode(conversationId: Int64) async throws -> String {
+        let res = try await apiClient.regenerateGroupInviteCode(conversationId: conversationId)
+        if let idx = conversations.firstIndex(where: { $0.id == conversationId }) {
+            conversations[idx].inviteCode = res.inviteCode
+            if let vis = res.groupVisibility {
+                conversations[idx].groupVisibility = vis
+            }
+        }
+        return res.inviteCode
+    }
+
+    func updateGroupMemberRole(
+        conversationId: Int64,
+        targetUserId: Int64,
+        role: GroupRole
+    ) async throws {
+        let updatedMembers = try await apiClient.updateGroupMemberRole(
+            conversationId: conversationId,
+            targetUserId: targetUserId,
+            role: role.rawValue
+        )
+        applyUpdatedGroupMembers(updatedMembers, for: conversationId)
+    }
+
+    func transferGroupLeadership(conversationId: Int64, newLeaderUserId: Int64) async throws {
+        let updatedMembers = try await apiClient.transferGroupLeader(
+            conversationId: conversationId,
+            newLeaderUserId: newLeaderUserId
+        )
+        applyUpdatedGroupMembers(updatedMembers, for: conversationId)
+        groupJoinRequestsByConversation.removeValue(forKey: conversationId)
+        if let idx = conversations.firstIndex(where: { $0.id == conversationId }) {
+            conversations[idx].currentUserRole = GroupRole.member.rawValue
+            conversations[idx].pendingJoinRequestCount = 0
+        }
+        await loadConversations()
+    }
+
+    func previewGroupInvite(rawInput: String) async throws -> GroupInvitePreviewResponse {
+        guard let code = GroupInviteLinkParser.extractInviteCode(from: rawInput) else {
+            throw APIClientError.serverError(
+                statusCode: 400,
+                message: "Vui lòng nhập link mời hợp lệ (ví dụ https://chat-bln.fishu.io.vn/join/grp_xxx) hoặc mã mời."
+            )
+        }
+        return try await apiClient.previewGroupInvite(inviteCode: code)
+    }
+
+    func joinGroupByInvite(inviteCode: String) async throws -> JoinGroupResponse {
+        guard let cleanCode = GroupInviteLinkParser.extractInviteCode(from: inviteCode) else {
+            throw APIClientError.serverError(statusCode: 400, message: "Mã mời nhóm không hợp lệ.")
+        }
+        let response = try await apiClient.joinGroupByInvite(inviteCode: cleanCode)
+        if response.normalizedStatus == "JOINED" || response.normalizedStatus == "ALREADY_MEMBER" {
+            await loadConversations()
+        }
+        return response
+    }
+
+    func loadGroupJoinRequests(conversationId: Int64) async {
+        guard let conv = conversation(for: conversationId),
+              conv.isGroup,
+              conv.canCurrentUserManageGroupRequests else {
+            return
+        }
+        do {
+            let list = try await apiClient.getGroupJoinRequests(conversationId: conversationId)
+            let pendingOnly = list.filter { $0.status.uppercased() == "PENDING" }
+            groupJoinRequestsByConversation[conversationId] = pendingOnly
+            if let idx = conversations.firstIndex(where: { $0.id == conversationId }) {
+                conversations[idx].pendingJoinRequestCount = pendingOnly.count
+            }
+        } catch {
+            // Bỏ qua nếu người dùng vừa đổi vai trò không còn quyền xem danh sách duyệt
+        }
+    }
+
+    func approveGroupJoinRequest(conversationId: Int64, requestId: Int64) async throws {
+        _ = try await apiClient.approveGroupJoinRequest(
+            conversationId: conversationId,
+            requestId: requestId
+        )
+        removeCachedJoinRequest(conversationId: conversationId, requestId: requestId)
+        async let membersReload: Void = loadConversationMembers(conversationId: conversationId)
+        async let conversationsReload: Void = loadConversations()
+        _ = await (membersReload, conversationsReload)
+    }
+
+    func rejectGroupJoinRequest(conversationId: Int64, requestId: Int64) async throws {
+        _ = try await apiClient.rejectGroupJoinRequest(
+            conversationId: conversationId,
+            requestId: requestId
+        )
+        removeCachedJoinRequest(conversationId: conversationId, requestId: requestId)
+    }
+
+    private func removeCachedJoinRequest(conversationId: Int64, requestId: Int64) {
+        if var existing = groupJoinRequestsByConversation[conversationId] {
+            existing.removeAll { $0.id == requestId }
+            groupJoinRequestsByConversation[conversationId] = existing
+            if let idx = conversations.firstIndex(where: { $0.id == conversationId }) {
+                conversations[idx].pendingJoinRequestCount = existing.count
+            }
+        }
+    }
+
+    private func applyUpdatedGroupMembers(_ members: [GroupMemberDto], for conversationId: Int64) {
+        groupMembersByConversation[conversationId] = members
+        if let idx = conversations.firstIndex(where: { $0.id == conversationId }) {
+            conversations[idx].members = members
+            conversations[idx].memberCount = members.count
+            if let me = members.first(where: { $0.username.lowercased() == currentUsername.lowercased() }),
+               let myRole = me.role {
+                conversations[idx].currentUserRole = myRole
+            }
+        }
     }
 
     func deleteMessages(
@@ -263,9 +415,12 @@ final class ChatStoreViewModel {
         activeConversationId = conversationId
         unreadCountByConversation[conversationId] = 0
         stompClient.subscribe(topic: "/topic/conversations/\(conversationId)")
-        if conversation(for: conversationId)?.isGroup == true {
+        if let conv = conversation(for: conversationId), conv.isGroup {
             Task {
                 await loadConversationMembers(conversationId: conversationId)
+                if self.conversation(for: conversationId)?.canCurrentUserManageGroupRequests == true {
+                    await loadGroupJoinRequests(conversationId: conversationId)
+                }
             }
         }
         await loadInitialMessages(conversationId: conversationId)
@@ -274,11 +429,7 @@ final class ChatStoreViewModel {
     func loadConversationMembers(conversationId: Int64) async {
         do {
             let members = try await apiClient.getConversationMembers(conversationId: conversationId)
-            groupMembersByConversation[conversationId] = members
-            if let idx = conversations.firstIndex(where: { $0.id == conversationId }) {
-                conversations[idx].members = members
-                conversations[idx].memberCount = members.count
-            }
+            applyUpdatedGroupMembers(members, for: conversationId)
         } catch {
             // Giữ danh sách sẵn có nếu mất mạng tạm thời
         }
@@ -520,18 +671,49 @@ final class ChatStoreViewModel {
             self?.handleIncomingMessageDeletion(ev)
         }
 
-        stompClient.onFriendshipReceived = { [weak self] _ in
+        stompClient.onFriendshipReceived = { [weak self] event in
             guard let self else { return }
             Task {
-                async let f: Void = self.loadFriends()
-                async let r: Void = self.loadFriendRequests()
-                async let c: Void = self.loadConversations()
-                _ = await (f, r, c)
+                await self.handleFriendshipOrGroupRealtimeEvent(event)
             }
         }
 
         stompClient.onPresenceReceived = { [weak self] event in
             self?.handleIncomingPresence(event)
+        }
+    }
+
+    private func handleFriendshipOrGroupRealtimeEvent(_ event: FriendshipEventDto) async {
+        let eventType = (event.type ?? "").uppercased()
+        let isGroupEvent = eventType.hasPrefix("GROUP_")
+
+        if isGroupEvent {
+            await loadConversations()
+
+            var affectedIds: Set<Int64> = []
+            if let cid = event.conversationId {
+                affectedIds.insert(cid)
+            }
+            if let activeId = activeConversationId {
+                affectedIds.insert(activeId)
+            }
+            affectedIds.formUnion(groupMembersByConversation.keys)
+            affectedIds.formUnion(groupJoinRequestsByConversation.keys)
+
+            for cid in affectedIds {
+                guard let conv = conversation(for: cid), conv.isGroup else { continue }
+                await loadConversationMembers(conversationId: cid)
+                if conv.canCurrentUserManageGroupRequests {
+                    await loadGroupJoinRequests(conversationId: cid)
+                } else {
+                    groupJoinRequestsByConversation.removeValue(forKey: cid)
+                }
+            }
+        } else {
+            async let f: Void = loadFriends()
+            async let r: Void = loadFriendRequests()
+            async let c: Void = loadConversations()
+            _ = await (f, r, c)
         }
     }
 

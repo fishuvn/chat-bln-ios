@@ -4,6 +4,7 @@ struct NewConversationSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var settings: AppSettings
     @Bindable var chatStore: ChatStoreViewModel
+    var onRequestJoinByInvite: (() -> Void)? = nil
 
     private enum ComposeMode: String, CaseIterable, Identifiable {
         case direct = "Tin nhắn riêng"
@@ -15,8 +16,10 @@ struct NewConversationSheet: View {
     @State private var mode: ComposeMode = .direct
     @State private var filterKeyword: String = ""
     @State private var groupName: String = ""
+    @State private var groupVisibility: GroupVisibility = .privateGroup
     @State private var selectedMemberIds: Set<Int64> = []
     @State private var isSubmitting: Bool = false
+    @State private var showJoinGroupSheet: Bool = false
     @State private var localError: String?
 
     private var filteredFriends: [FriendResponse] {
@@ -49,25 +52,81 @@ struct NewConversationSheet: View {
                 }
 
                 List {
-                    if mode == .group {
-                        Section("Thông tin nhóm") {
-                            TextField("Nhập tên nhóm (ví dụ: Nhóm Đồ Án iOS)", text: $groupName)
-                            if !selectedMemberIds.isEmpty {
-                                Text("Đã chọn \(selectedMemberIds.count) thành viên")
-                                    .font(.caption)
-                                    .foregroundStyle(Color.chatBLNPrimary)
+                    Section {
+                        Button {
+                            if let onRequestJoinByInvite {
+                                dismiss()
+                                onRequestJoinByInvite()
+                            } else {
+                                showJoinGroupSheet = true
+                            }
+                        } label: {
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.chatBLNPrimary.opacity(0.14))
+                                        .frame(width: 38, height: 38)
+                                    Image(systemName: "link.badge.plus")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(Color.chatBLNPrimary)
+                                }
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Tham gia nhóm bằng link / mã mời")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.primary)
+                                    Text("Dán link /join/grp_... hoặc nhập mã mời")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer()
+
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.tertiary)
                             }
                         }
                     }
 
-                    Section(mode == .direct ? "Chọn bạn bè để nhắn tin" : "Chọn thành viên nhóm") {
+                    if mode == .group {
+                        Section {
+                            TextField("Nhập tên nhóm (ví dụ: Nhóm Đồ Án iOS)", text: $groupName)
+
+                            Picker("Quyền riêng tư", selection: $groupVisibility) {
+                                ForEach(GroupVisibility.allCases) { option in
+                                    Label(option.title, systemImage: option.iconName)
+                                        .tag(option)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+
+                            if selectedMemberIds.isEmpty {
+                                Text("Chưa chọn thành viên ban đầu — bạn vẫn có thể tạo nhóm ngay và mời qua link.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("Đã chọn \(selectedMemberIds.count) thành viên ban đầu")
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(Color.chatBLNPrimary)
+                            }
+                        } header: {
+                            Text("Thông tin & Quyền riêng tư nhóm")
+                        } footer: {
+                            Text(groupVisibility.helperCaption)
+                        }
+                    }
+
+                    Section(mode == .direct ? "Chọn bạn bè để nhắn tin" : "Thêm thành viên từ danh bạ (tuỳ chọn)") {
                         if filteredFriends.isEmpty {
                             ContentUnavailableView(
                                 chatStore.friends.isEmpty ? "Chưa có bạn bè" : "Không tìm thấy kết quả",
                                 systemImage: "person.2.slash",
                                 description: Text(
                                     chatStore.friends.isEmpty
-                                        ? "Hãy sang mục Danh bạ để tìm và kết bạn trước khi bắt đầu trò chuyện."
+                                        ? (mode == .group
+                                            ? "Bạn vẫn có thể nhấn Tạo nhóm rồi gửi link mời cho mọi người."
+                                            : "Hãy sang mục Danh bạ để tìm và kết bạn trước khi bắt đầu trò chuyện.")
                                         : "Thử nhập tên hoặc username khác."
                                 )
                             )
@@ -99,11 +158,16 @@ struct NewConversationSheet: View {
                         .fontWeight(.semibold)
                         .disabled(
                             isSubmitting ||
-                            groupName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                            selectedMemberIds.isEmpty
+                            groupName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                         )
                     }
                 }
+            }
+            .sheet(isPresented: $showJoinGroupSheet) {
+                JoinGroupSheet(
+                    settings: settings,
+                    chatStore: chatStore
+                )
             }
             .task {
                 if chatStore.friends.isEmpty {
@@ -181,7 +245,8 @@ struct NewConversationSheet: View {
         localError = nil
         let created = await chatStore.createGroupChat(
             name: groupName,
-            memberIds: Array(selectedMemberIds)
+            memberIds: Array(selectedMemberIds),
+            visibility: groupVisibility
         )
         isSubmitting = false
         if created != nil {

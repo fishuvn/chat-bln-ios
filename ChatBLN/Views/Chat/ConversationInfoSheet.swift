@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ConversationInfoSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -12,8 +13,16 @@ struct ConversationInfoSheet: View {
 
     @State private var showDeleteConfirm: Bool = false
     @State private var showUnfriendConfirm: Bool = false
+    @State private var showRegenerateInviteConfirm: Bool = false
+    @State private var memberPendingLeaderTransfer: GroupMemberDto?
+
     @State private var isDeleting: Bool = false
     @State private var isProcessingFriendship: Bool = false
+    @State private var isUpdatingVisibility: Bool = false
+    @State private var isRegeneratingInvite: Bool = false
+    @State private var processingMemberIds: Set<Int64> = []
+    @State private var processingJoinRequestIds: Set<Int64> = []
+
     @State private var actionNotice: String?
     @State private var deleteError: String?
 
@@ -21,8 +30,25 @@ struct ConversationInfoSheet: View {
         chatStore.conversation(for: conversation.id) ?? conversation
     }
 
-    private var groupMembers: [GroupMemberDto] {
-        chatStore.groupMembersByConversation[conversation.id] ?? liveConversation.members ?? []
+    private var sortedGroupMembers: [GroupMemberDto] {
+        let raw = chatStore.groupMembersByConversation[conversation.id] ?? liveConversation.members ?? []
+        return raw.sorted { lhs, rhs in
+            if lhs.resolvedRole.sortPriority != rhs.resolvedRole.sortPriority {
+                return lhs.resolvedRole.sortPriority < rhs.resolvedRole.sortPriority
+            }
+            return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+        }
+    }
+
+    private var pendingJoinRequests: [GroupJoinRequestDto] {
+        chatStore.groupJoinRequestsByConversation[conversation.id] ?? []
+    }
+
+    private var effectivePendingCount: Int {
+        if chatStore.groupJoinRequestsByConversation[conversation.id] != nil {
+            return pendingJoinRequests.count
+        }
+        return max(0, liveConversation.pendingJoinRequestCount ?? 0)
     }
 
     private var sharedMediaMessages: [MessageDto] {
@@ -43,36 +69,7 @@ struct ConversationInfoSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    VStack(spacing: 10) {
-                        AvatarView(
-                            name: liveConversation.displayName,
-                            avatarURL: settings.resolveAssetURL(liveConversation.avatarUrl),
-                            size: 80,
-                            isGroup: liveConversation.isGroup,
-                            isOnline: liveConversation.isGroup ? nil : (liveConversation.isOnline ?? false),
-                            presenceStatus: liveConversation.presenceStatus
-                        )
-
-                        Text(liveConversation.displayName)
-                            .font(.title3.weight(.bold))
-                            .multilineTextAlignment(.center)
-
-                        Text(statusSubtitle)
-                            .font(.subheadline)
-                            .foregroundStyle(
-                                liveConversation.isGroup
-                                    ? .secondary
-                                    : ChatDateFormatter.presenceTintColor(
-                                        isOnline: liveConversation.isOnline,
-                                        presenceStatus: liveConversation.presenceStatus
-                                    )
-                            )
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .listRowBackground(Color.clear)
-                }
+                headerSection
 
                 if let actionNotice {
                     Section {
@@ -82,9 +79,24 @@ struct ConversationInfoSheet: View {
                     }
                 }
 
+                if let deleteError {
+                    Section {
+                        Label(deleteError, systemImage: "exclamationmark.triangle.fill")
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
+                }
+
                 if liveConversation.isGroup {
-                    Section("Thành viên nhóm (\(groupMembers.count))") {
-                        if groupMembers.isEmpty {
+                    groupInviteAndVisibilitySection
+
+                    if liveConversation.canCurrentUserManageGroupRequests &&
+                        (liveConversation.resolvedGroupVisibility == .privateGroup || !pendingJoinRequests.isEmpty) {
+                        pendingJoinRequestsSection
+                    }
+
+                    Section("Thành viên nhóm (\(sortedGroupMembers.count))") {
+                        if sortedGroupMembers.isEmpty {
                             HStack(spacing: 10) {
                                 ProgressView()
                                     .controlSize(.small)
@@ -93,188 +105,20 @@ struct ConversationInfoSheet: View {
                                     .foregroundStyle(.secondary)
                             }
                         } else {
-                            ForEach(groupMembers) { member in
+                            ForEach(sortedGroupMembers) { member in
                                 groupMemberRow(member)
                             }
                         }
                     }
                 } else {
-                    Section("Thông tin liên hệ") {
-                        if let username = liveConversation.targetUsername, !username.isEmpty {
-                            LabeledContent("Username", value: "@\(username)")
-                        }
-                        if let email = liveConversation.email, !email.isEmpty {
-                            LabeledContent("Email", value: email)
-                        }
-                        if let phone = liveConversation.phone, !phone.isEmpty {
-                            LabeledContent("Điện thoại", value: phone)
-                        }
-                        if let gender = liveConversation.gender, !gender.isEmpty {
-                            LabeledContent("Giới tính", value: gender)
-                        }
-                        if let dob = liveConversation.dob, !dob.isEmpty {
-                            LabeledContent("Ngày sinh", value: dob)
-                        }
-                        if let bio = liveConversation.bio, !bio.isEmpty {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Tiểu sử")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text(bio)
-                                    .font(.subheadline)
-                            }
-                            .padding(.vertical, 2)
-                        }
-                    }
+                    privateContactDetailsSection
                 }
 
-                Section("Ảnh & Video đã chia sẻ (\(sharedMediaMessages.count))") {
-                    if sharedMediaMessages.isEmpty {
-                        Text("Chưa có ảnh hoặc video nào trong cuộc trò chuyện này.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        LazyVGrid(columns: mediaColumns, spacing: 8) {
-                            ForEach(sharedMediaMessages) { item in
-                                if let url = settings.resolveAssetURL(item.attachmentUrl) {
-                                    Button {
-                                        openURL(url)
-                                    } label: {
-                                        ZStack {
-                                            if item.normalizedAttachmentKind == "IMAGE" {
-                                                AsyncImage(url: url) { phase in
-                                                    switch phase {
-                                                    case .success(let image):
-                                                        image
-                                                            .resizable()
-                                                            .scaledToFill()
-                                                    default:
-                                                        Color(.tertiarySystemGroupedBackground)
-                                                    }
-                                                }
-                                            } else {
-                                                Color.black.opacity(0.82)
-                                                Image(systemName: "play.circle.fill")
-                                                    .font(.title2)
-                                                    .foregroundStyle(.white)
-                                            }
-                                        }
-                                        .frame(height: 92)
-                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                }
+                sharedMediaSection
 
-                Section("Tệp đính kèm (\(sharedFileMessages.count))") {
-                    if sharedFileMessages.isEmpty {
-                        Text("Chưa có tệp tài liệu nào được chia sẻ.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(sharedFileMessages) { fileMsg in
-                            if let url = settings.resolveAssetURL(fileMsg.attachmentUrl) {
-                                Button {
-                                    openURL(url)
-                                } label: {
-                                    HStack(spacing: 12) {
-                                        Image(systemName: "doc.fill")
-                                            .foregroundStyle(Color.chatBLNPrimary)
-                                            .frame(width: 28)
+                sharedFilesSection
 
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(fileMsg.attachmentName ?? "Tệp đính kèm")
-                                                .font(.subheadline.weight(.medium))
-                                                .foregroundStyle(.primary)
-                                                .lineLimit(1)
-
-                                            if let size = fileMsg.attachmentSize, !size.isEmpty {
-                                                Text(size)
-                                                    .font(.caption)
-                                                    .foregroundStyle(.secondary)
-                                            }
-                                        }
-
-                                        Spacer()
-
-                                        Image(systemName: "arrow.up.right.square")
-                                            .font(.footnote)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Section {
-                    if let deleteError {
-                        Text(deleteError)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                    }
-
-                    if !liveConversation.isGroup, let targetId = liveConversation.targetUserId {
-                        if liveConversation.isFriend != false {
-                            Button(role: .destructive) {
-                                showUnfriendConfirm = true
-                            } label: {
-                                HStack(spacing: 10) {
-                                    if isProcessingFriendship {
-                                        ProgressView()
-                                    } else {
-                                        Image(systemName: "person.badge.minus")
-                                    }
-                                    Text("Hủy kết bạn")
-                                        .fontWeight(.semibold)
-                                }
-                            }
-                            .disabled(isProcessingFriendship)
-                        } else if liveConversation.friendshipStatus?.uppercased() == "PENDING" {
-                            Label("Đã gửi lời mời kết bạn", systemImage: "clock.fill")
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Button {
-                                Task {
-                                    await sendReFriendRequest(targetId: targetId)
-                                }
-                            } label: {
-                                HStack(spacing: 10) {
-                                    if isProcessingFriendship {
-                                        ProgressView()
-                                    } else {
-                                        Image(systemName: "person.badge.plus")
-                                    }
-                                    Text("Kết bạn lại")
-                                        .fontWeight(.semibold)
-                                }
-                            }
-                            .disabled(isProcessingFriendship)
-                        }
-                    }
-
-                    if onDeleteConversation != nil {
-                        Button(role: .destructive) {
-                            showDeleteConfirm = true
-                        } label: {
-                            HStack(spacing: 10) {
-                                if isDeleting {
-                                    ProgressView()
-                                } else {
-                                    Image(systemName: "trash.fill")
-                                }
-                                Text(isDeleting ? "Đang xóa..." : "Xóa lịch sử trò chuyện")
-                                    .fontWeight(.semibold)
-                            }
-                        }
-                        .disabled(isDeleting)
-                    }
-                }
+                dangerZoneSection
             }
             .confirmationDialog(
                 "Hủy kết bạn với \"\(liveConversation.displayName)\"? Hai bạn sẽ trở về trạng thái chưa kết bạn và có thể kết bạn lại bất cứ lúc nào.",
@@ -290,11 +134,11 @@ struct ConversationInfoSheet: View {
                 Button("Đóng", role: .cancel) {}
             }
             .confirmationDialog(
-                "Xóa cuộc trò chuyện và toàn bộ lịch sử tin nhắn với \"\(liveConversation.displayName)\"?",
+                dangerConfirmationTitle,
                 isPresented: $showDeleteConfirm,
                 titleVisibility: .visible
             ) {
-                Button("Xóa lịch sử trò chuyện", role: .destructive) {
+                Button(dangerActionButtonTitle, role: .destructive) {
                     guard let onDeleteConversation else { return }
                     isDeleting = true
                     deleteError = nil
@@ -310,7 +154,38 @@ struct ConversationInfoSheet: View {
                 }
                 Button("Huỷ", role: .cancel) {}
             }
-            .navigationTitle("Chi tiết hội thoại")
+            .confirmationDialog(
+                "Tạo mã mời nhóm mới? Đường link mời cũ sẽ bị vô hiệu hoá ngay lập tức.",
+                isPresented: $showRegenerateInviteConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Đổi mã mời mới", role: .destructive) {
+                    Task {
+                        await executeRegenerateInviteCode()
+                    }
+                }
+                Button("Huỷ", role: .cancel) {}
+            }
+            .alert(
+                "Chuyển quyền Trưởng nhóm?",
+                isPresented: Binding(
+                    get: { memberPendingLeaderTransfer != nil },
+                    set: { if !$0 { memberPendingLeaderTransfer = nil } }
+                ),
+                presenting: memberPendingLeaderTransfer
+            ) { targetMember in
+                Button("Chuyển quyền", role: .destructive) {
+                    Task {
+                        await executeTransferLeadership(to: targetMember)
+                    }
+                }
+                Button("Huỷ", role: .cancel) {
+                    memberPendingLeaderTransfer = nil
+                }
+            } message: { targetMember in
+                Text("Bạn sẽ chuyển quyền Trưởng nhóm cho \(targetMember.displayName) (@\(targetMember.username)) và trở thành Thành viên.")
+            }
+            .navigationTitle(liveConversation.isGroup ? "Thông tin nhóm" : "Chi tiết hội thoại")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -323,6 +198,9 @@ struct ConversationInfoSheet: View {
             .task {
                 if liveConversation.isGroup {
                     await chatStore.loadConversationMembers(conversationId: liveConversation.id)
+                    if chatStore.conversation(for: liveConversation.id)?.canCurrentUserManageGroupRequests == true {
+                        await chatStore.loadGroupJoinRequests(conversationId: liveConversation.id)
+                    }
                 }
             }
         }
@@ -330,9 +208,498 @@ struct ConversationInfoSheet: View {
         .presentationDragIndicator(.visible)
     }
 
+    // MARK: - Header & Group Badges
+
+    private var headerSection: some View {
+        Section {
+            VStack(spacing: 10) {
+                AvatarView(
+                    name: liveConversation.displayName,
+                    avatarURL: settings.resolveAssetURL(liveConversation.avatarUrl),
+                    size: 80,
+                    isGroup: liveConversation.isGroup,
+                    isOnline: liveConversation.isGroup ? nil : (liveConversation.isOnline ?? false),
+                    presenceStatus: liveConversation.presenceStatus
+                )
+
+                Text(liveConversation.displayName)
+                    .font(.title3.weight(.bold))
+                    .multilineTextAlignment(.center)
+
+                Text(statusSubtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(
+                        liveConversation.isGroup
+                            ? .secondary
+                            : ChatDateFormatter.presenceTintColor(
+                                isOnline: liveConversation.isOnline,
+                                presenceStatus: liveConversation.presenceStatus
+                            )
+                    )
+
+                if liveConversation.isGroup {
+                    HStack(spacing: 8) {
+                        let visibility = liveConversation.resolvedGroupVisibility
+                        let isPublic = visibility == .publicGroup
+                        Label(visibility.title, systemImage: visibility.iconName)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(isPublic ? Color.green : Color.indigo)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(
+                                (isPublic ? Color.green : Color.indigo).opacity(0.14),
+                                in: Capsule()
+                            )
+
+                        roleBadgeView(for: liveConversation.resolvedGroupRole)
+                    }
+
+                    if liveConversation.canCurrentUserManageGroupRequests && effectivePendingCount > 0 {
+                        Label("\(effectivePendingCount) yêu cầu tham gia chờ duyệt", systemImage: "person.crop.circle.badge.clock")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 5)
+                            .background(Color.orange.opacity(0.14), in: Capsule())
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .listRowBackground(Color.clear)
+        }
+    }
+
+    // MARK: - Share Invite Link & Group Visibility
+
+    private var groupInviteAndVisibilitySection: some View {
+        Section {
+            if liveConversation.isCurrentUserGroupAdmin {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Quyền riêng tư nhóm")
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                        if isUpdatingVisibility {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                    }
+
+                    Picker(
+                        "Quyền riêng tư nhóm",
+                        selection: Binding(
+                            get: { liveConversation.resolvedGroupVisibility },
+                            set: { newVisibility in
+                                guard newVisibility != liveConversation.resolvedGroupVisibility else { return }
+                                Task {
+                                    await executeVisibilityChange(newVisibility)
+                                }
+                            }
+                        )
+                    ) {
+                        ForEach(GroupVisibility.allCases) { option in
+                            Text(option.title).tag(option)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(isUpdatingVisibility)
+                }
+                .padding(.vertical, 4)
+            }
+
+            if let inviteCode = liveConversation.inviteCode, !inviteCode.isEmpty {
+                let shareURLString = GroupInviteLinkParser.shareURLString(for: inviteCode)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Liên kết mời tham gia nhóm")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Text(shareURLString)
+                        .font(.footnote.monospaced())
+                        .foregroundStyle(.primary)
+                        .textSelection(.enabled)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                    HStack(spacing: 8) {
+                        Button {
+                            UIPasteboard.general.string = shareURLString
+                            deleteError = nil
+                            actionNotice = "Đã sao chép liên kết mời nhóm vào bộ nhớ tạm."
+                        } label: {
+                            Label("Sao chép", systemImage: "doc.on.doc")
+                                .font(.footnote.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .tint(.chatBLNPrimary)
+
+                        if let shareURL = URL(string: shareURLString) {
+                            ShareLink(
+                                item: shareURL,
+                                message: Text("Mời bạn tham gia nhóm \"\(liveConversation.displayName)\" trên Chat BLN")
+                            ) {
+                                Label("Chia sẻ", systemImage: "square.and.arrow.up")
+                                    .font(.footnote.weight(.semibold))
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+
+                        if liveConversation.canCurrentUserManageGroupRequests {
+                            Button {
+                                showRegenerateInviteConfirm = true
+                            } label: {
+                                if isRegeneratingInvite {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                } else {
+                                    Label("Đổi link", systemImage: "arrow.triangle.2.circlepath")
+                                        .font(.footnote.weight(.semibold))
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(isRegeneratingInvite)
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        } header: {
+            Text("Liên kết mời & Chế độ nhóm")
+        } footer: {
+            Text(liveConversation.resolvedGroupVisibility.helperCaption)
+        }
+    }
+
+    // MARK: - Pending Join Requests (Admin & Deputy)
+
+    private var pendingJoinRequestsSection: some View {
+        Section("Yêu cầu tham gia chờ duyệt (\(pendingJoinRequests.count))") {
+            if pendingJoinRequests.isEmpty {
+                Text("Hiện không có yêu cầu tham gia nào đang chờ phê duyệt.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(pendingJoinRequests) { req in
+                    let isBusy = processingJoinRequestIds.contains(req.id)
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 10) {
+                            AvatarView(
+                                name: req.displayName,
+                                avatarURL: settings.resolveAssetURL(req.avatarUrl),
+                                size: 42
+                            )
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(req.displayName)
+                                    .font(.subheadline.weight(.semibold))
+                                Text("@\(req.username)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            let createdLabel = ChatDateFormatter.formatConversationTime(req.createdAt)
+                            if !createdLabel.isEmpty {
+                                Text(createdLabel)
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+
+                        HStack(spacing: 10) {
+                            Button {
+                                Task {
+                                    await handleApproveJoinRequest(req)
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    if isBusy {
+                                        ProgressView()
+                                            .controlSize(.mini)
+                                            .tint(.white)
+                                    } else {
+                                        Image(systemName: "checkmark")
+                                    }
+                                    Text("Duyệt")
+                                        .font(.footnote.weight(.semibold))
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            .tint(.chatBLNPrimary)
+                            .disabled(isBusy)
+
+                            Button(role: .destructive) {
+                                Task {
+                                    await handleRejectJoinRequest(req)
+                                }
+                            } label: {
+                                Text("Từ chối")
+                                    .font(.footnote.weight(.medium))
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(isBusy)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+    }
+
+    // MARK: - Private Contact Info
+
+    private var privateContactDetailsSection: some View {
+        Section("Thông tin liên hệ") {
+            if let username = liveConversation.targetUsername, !username.isEmpty {
+                LabeledContent("Username", value: "@\(username)")
+            }
+            if let email = liveConversation.email, !email.isEmpty {
+                LabeledContent("Email", value: email)
+            }
+            if let phone = liveConversation.phone, !phone.isEmpty {
+                LabeledContent("Điện thoại", value: phone)
+            }
+            if let gender = liveConversation.gender, !gender.isEmpty {
+                LabeledContent("Giới tính", value: gender)
+            }
+            if let dob = liveConversation.dob, !dob.isEmpty {
+                LabeledContent("Ngày sinh", value: dob)
+            }
+            if let bio = liveConversation.bio, !bio.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Tiểu sử")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(bio)
+                        .font(.subheadline)
+                }
+                .padding(.vertical, 2)
+            }
+        }
+    }
+
+    // MARK: - Shared Media & Files
+
+    private var sharedMediaSection: some View {
+        Section("Ảnh & Video đã chia sẻ (\(sharedMediaMessages.count))") {
+            if sharedMediaMessages.isEmpty {
+                Text("Chưa có ảnh hoặc video nào trong cuộc trò chuyện này.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                LazyVGrid(columns: mediaColumns, spacing: 8) {
+                    ForEach(sharedMediaMessages) { item in
+                        if let url = settings.resolveAssetURL(item.attachmentUrl) {
+                            Button {
+                                openURL(url)
+                            } label: {
+                                ZStack {
+                                    if item.normalizedAttachmentKind == "IMAGE" {
+                                        AsyncImage(url: url) { phase in
+                                            switch phase {
+                                            case .success(let image):
+                                                image
+                                                    .resizable()
+                                                    .scaledToFill()
+                                            default:
+                                                Color(.tertiarySystemGroupedBackground)
+                                            }
+                                        }
+                                    } else {
+                                        Color.black.opacity(0.82)
+                                        Image(systemName: "play.circle.fill")
+                                            .font(.title2)
+                                            .foregroundStyle(.white)
+                                    }
+                                }
+                                .frame(height: 92)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        }
+    }
+
+    private var sharedFilesSection: some View {
+        Section("Tệp đính kèm (\(sharedFileMessages.count))") {
+            if sharedFileMessages.isEmpty {
+                Text("Chưa có tệp tài liệu nào được chia sẻ.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(sharedFileMessages) { fileMsg in
+                    if let url = settings.resolveAssetURL(fileMsg.attachmentUrl) {
+                        Button {
+                            openURL(url)
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "doc.fill")
+                                    .foregroundStyle(Color.chatBLNPrimary)
+                                    .frame(width: 28)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(fileMsg.attachmentName ?? "Tệp đính kèm")
+                                        .font(.subheadline.weight(.medium))
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(1)
+
+                                    if let size = fileMsg.attachmentSize, !size.isEmpty {
+                                        Text(size)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+
+                                Spacer()
+
+                                Image(systemName: "arrow.up.right.square")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Danger Zone
+
+    private var dangerConfirmationTitle: String {
+        if liveConversation.isGroup {
+            if liveConversation.isCurrentUserGroupAdmin {
+                return "Giải tán nhóm \"\(liveConversation.displayName)\"? Toàn bộ thành viên và lịch sử tin nhắn sẽ bị xóa vĩnh viễn."
+            }
+            return "Bạn có chắc muốn rời khỏi nhóm \"\(liveConversation.displayName)\"?"
+        }
+        return "Xóa cuộc trò chuyện và toàn bộ lịch sử tin nhắn với \"\(liveConversation.displayName)\"?"
+    }
+
+    private var dangerActionButtonTitle: String {
+        if liveConversation.isGroup {
+            return liveConversation.isCurrentUserGroupAdmin ? "Giải tán nhóm" : "Rời khỏi nhóm"
+        }
+        return "Xóa lịch sử trò chuyện"
+    }
+
+    private var dangerZoneSection: some View {
+        Section {
+            if !liveConversation.isGroup, let targetId = liveConversation.targetUserId {
+                if liveConversation.isFriend != false {
+                    Button(role: .destructive) {
+                        showUnfriendConfirm = true
+                    } label: {
+                        HStack(spacing: 10) {
+                            if isProcessingFriendship {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "person.badge.minus")
+                            }
+                            Text("Hủy kết bạn")
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    .disabled(isProcessingFriendship)
+                } else if liveConversation.friendshipStatus?.uppercased() == "PENDING" {
+                    Label("Đã gửi lời mời kết bạn", systemImage: "clock.fill")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                } else {
+                    Button {
+                        Task {
+                            await sendReFriendRequest(targetId: targetId)
+                        }
+                    } label: {
+                        HStack(spacing: 10) {
+                            if isProcessingFriendship {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "person.badge.plus")
+                            }
+                            Text("Kết bạn lại")
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    .disabled(isProcessingFriendship)
+                }
+            }
+
+            if onDeleteConversation != nil {
+                Button(role: .destructive) {
+                    showDeleteConfirm = true
+                } label: {
+                    HStack(spacing: 10) {
+                        if isDeleting {
+                            ProgressView()
+                        } else {
+                            Image(
+                                systemName: liveConversation.isGroup
+                                    ? (liveConversation.isCurrentUserGroupAdmin ? "trash.fill" : "rectangle.portrait.and.arrow.right")
+                                    : "trash.fill"
+                            )
+                        }
+                        Text(isDeleting ? "Đang xử lý..." : dangerActionButtonTitle)
+                            .fontWeight(.semibold)
+                    }
+                }
+                .disabled(isDeleting)
+            }
+        }
+    }
+
+    // MARK: - Member Row & Role Management
+
+    private func roleBadgeView(for role: GroupRole) -> some View {
+        let fg: Color = {
+            switch role {
+            case .admin:
+                return .orange
+            case .deputy:
+                return .chatBLNPrimary
+            case .member:
+                return .secondary
+            }
+        }()
+
+        let bg: Color = {
+            switch role {
+            case .admin:
+                return Color.orange.opacity(0.16)
+            case .deputy:
+                return Color.chatBLNPrimary.opacity(0.14)
+            case .member:
+                return Color(.tertiarySystemFill)
+            }
+        }()
+
+        return Label(role.title, systemImage: role.iconName)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(fg)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(bg, in: Capsule())
+    }
+
     private func groupMemberRow(_ member: GroupMemberDto) -> some View {
         let isMe = member.username.lowercased() == chatStore.currentUsername.lowercased()
         let matchedFriend = chatStore.friends.first(where: { $0.id == member.id })
+        let isMemberBusy = processingMemberIds.contains(member.id)
 
         return HStack(spacing: 12) {
             AvatarView(
@@ -361,52 +728,187 @@ struct ConversationInfoSheet: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
 
-                    Text(member.isAdmin ? "Quản trị viên" : "Thành viên")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(member.isAdmin ? Color.chatBLNPrimary : .secondary)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2)
-                        .background(
-                            member.isAdmin
-                                ? Color.chatBLNPrimary.opacity(0.14)
-                                : Color(.tertiarySystemFill),
-                            in: Capsule()
-                        )
+                    roleBadgeView(for: member.resolvedRole)
                 }
             }
 
             Spacer()
 
-            if !isMe {
-                if let matchedFriend {
-                    Button {
-                        dismiss()
-                        Task {
-                            _ = await chatStore.startOrOpenPrivateChat(with: matchedFriend)
+            if isMemberBusy {
+                ProgressView()
+                    .controlSize(.small)
+            } else if !isMe {
+                HStack(spacing: 10) {
+                    if let matchedFriend {
+                        Button {
+                            dismiss()
+                            Task {
+                                _ = await chatStore.startOrOpenPrivateChat(with: matchedFriend)
+                            }
+                        } label: {
+                            Image(systemName: "bubble.right.fill")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.chatBLNPrimary)
                         }
-                    } label: {
-                        Image(systemName: "bubble.right.fill")
-                            .font(.subheadline)
-                            .foregroundStyle(Color.chatBLNPrimary)
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("Nhắn tin riêng với \(member.displayName)")
-                } else {
-                    Button {
-                        Task {
-                            await sendReFriendRequest(targetId: member.id, customName: member.displayName)
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Nhắn tin riêng với \(member.displayName)")
+                    } else {
+                        Button {
+                            Task {
+                                await sendReFriendRequest(targetId: member.id, customName: member.displayName)
+                            }
+                        } label: {
+                            Image(systemName: "person.badge.plus")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.chatBLNPrimary)
                         }
-                    } label: {
-                        Image(systemName: "person.badge.plus")
-                            .font(.subheadline)
-                            .foregroundStyle(Color.chatBLNPrimary)
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Kết bạn với \(member.displayName)")
                     }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("Kết bạn với \(member.displayName)")
+
+                    if liveConversation.isCurrentUserGroupAdmin {
+                        Menu {
+                            if member.isDeputy {
+                                Button {
+                                    Task {
+                                        await executeRoleChange(for: member, newRole: .member)
+                                    }
+                                } label: {
+                                    Label("Gỡ Phó nhóm", systemImage: "shield.slash")
+                                }
+                            } else {
+                                Button {
+                                    Task {
+                                        await executeRoleChange(for: member, newRole: .deputy)
+                                    }
+                                } label: {
+                                    Label("Bổ nhiệm Phó nhóm", systemImage: "shield.lefthalf.filled")
+                                }
+                            }
+
+                            Divider()
+
+                            Button(role: .destructive) {
+                                memberPendingLeaderTransfer = member
+                            } label: {
+                                Label("Chuyển quyền Trưởng nhóm", systemImage: "crown.fill")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Quản lý vai trò của \(member.displayName)")
+                    }
                 }
             }
         }
         .padding(.vertical, 2)
+    }
+
+    // MARK: - Async Handlers
+
+    private func executeVisibilityChange(_ newVisibility: GroupVisibility) async {
+        isUpdatingVisibility = true
+        deleteError = nil
+        actionNotice = nil
+        do {
+            try await chatStore.updateGroupVisibility(
+                conversationId: liveConversation.id,
+                visibility: newVisibility
+            )
+            actionNotice = "Đã chuyển sang chế độ \(newVisibility.title)."
+        } catch {
+            deleteError = error.localizedDescription
+        }
+        isUpdatingVisibility = false
+    }
+
+    private func executeRegenerateInviteCode() async {
+        isRegeneratingInvite = true
+        deleteError = nil
+        actionNotice = nil
+        do {
+            let newCode = try await chatStore.regenerateGroupInviteCode(conversationId: liveConversation.id)
+            UIPasteboard.general.string = GroupInviteLinkParser.shareURLString(for: newCode)
+            actionNotice = "Đã tạo mã mời mới và sao chép link vào bộ nhớ tạm."
+        } catch {
+            deleteError = error.localizedDescription
+        }
+        isRegeneratingInvite = false
+    }
+
+    private func executeRoleChange(for member: GroupMemberDto, newRole: GroupRole) async {
+        processingMemberIds.insert(member.id)
+        defer { processingMemberIds.remove(member.id) }
+        deleteError = nil
+        actionNotice = nil
+
+        do {
+            try await chatStore.updateGroupMemberRole(
+                conversationId: liveConversation.id,
+                targetUserId: member.id,
+                role: newRole
+            )
+            actionNotice = newRole == .deputy
+                ? "Đã bổ nhiệm \(member.displayName) làm Phó nhóm."
+                : "Đã gỡ quyền Phó nhóm của \(member.displayName)."
+        } catch {
+            deleteError = error.localizedDescription
+        }
+    }
+
+    private func executeTransferLeadership(to member: GroupMemberDto) async {
+        processingMemberIds.insert(member.id)
+        defer { processingMemberIds.remove(member.id) }
+        memberPendingLeaderTransfer = nil
+        deleteError = nil
+        actionNotice = nil
+
+        do {
+            try await chatStore.transferGroupLeadership(
+                conversationId: liveConversation.id,
+                newLeaderUserId: member.id
+            )
+            actionNotice = "Đã chuyển quyền Trưởng nhóm cho \(member.displayName)."
+        } catch {
+            deleteError = error.localizedDescription
+        }
+    }
+
+    private func handleApproveJoinRequest(_ request: GroupJoinRequestDto) async {
+        processingJoinRequestIds.insert(request.id)
+        defer { processingJoinRequestIds.remove(request.id) }
+        deleteError = nil
+        actionNotice = nil
+
+        do {
+            try await chatStore.approveGroupJoinRequest(
+                conversationId: liveConversation.id,
+                requestId: request.id
+            )
+            actionNotice = "Đã duyệt \(request.displayName) vào nhóm."
+        } catch {
+            deleteError = error.localizedDescription
+        }
+    }
+
+    private func handleRejectJoinRequest(_ request: GroupJoinRequestDto) async {
+        processingJoinRequestIds.insert(request.id)
+        defer { processingJoinRequestIds.remove(request.id) }
+        deleteError = nil
+        actionNotice = nil
+
+        do {
+            try await chatStore.rejectGroupJoinRequest(
+                conversationId: liveConversation.id,
+                requestId: request.id
+            )
+            actionNotice = "Đã từ chối yêu cầu của \(request.displayName)."
+        } catch {
+            deleteError = error.localizedDescription
+        }
     }
 
     private func executeUnfriend(targetId: Int64) async {
@@ -437,7 +939,7 @@ struct ConversationInfoSheet: View {
 
     private var statusSubtitle: String {
         if liveConversation.isGroup {
-            let count = groupMembers.isEmpty ? (liveConversation.memberCount ?? 0) : groupMembers.count
+            let count = sortedGroupMembers.isEmpty ? (liveConversation.memberCount ?? 0) : sortedGroupMembers.count
             return count > 0 ? "\(count) thành viên" : "Nhóm trò chuyện"
         }
         return ChatDateFormatter.formatPresenceStatus(

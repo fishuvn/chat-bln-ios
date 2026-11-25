@@ -8,6 +8,11 @@ private struct FullScreenImageItem: Identifiable {
     var id: String { url.absoluteString }
 }
 
+private struct InvitePreviewSheetItem: Identifiable {
+    let code: String
+    var id: String { code }
+}
+
 struct ChatRoomView: View {
     let conversationId: Int64
     let fallbackConversation: ConversationItemResponse
@@ -19,6 +24,7 @@ struct ChatRoomView: View {
     @State private var inChatSearchQuery: String = ""
     @State private var showEmojiSheet: Bool = false
     @State private var showInfoSheet: Bool = false
+    @State private var invitePreviewSheetItem: InvitePreviewSheetItem?
 
     @State private var showPhotoPicker: Bool = false
     @State private var showVideoPicker: Bool = false
@@ -60,6 +66,14 @@ struct ChatRoomView: View {
         chatStore.uploadingConversationIds.contains(conversationId)
     }
 
+    private var pendingJoinBadgeCount: Int {
+        guard conversation.isGroup, conversation.canCurrentUserManageGroupRequests else { return 0 }
+        if let loaded = chatStore.groupJoinRequestsByConversation[conversationId] {
+            return loaded.count
+        }
+        return max(0, conversation.pendingJoinRequestCount ?? 0)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             if isSearchBarVisible {
@@ -89,6 +103,13 @@ struct ChatRoomView: View {
             }
 
             messagesScrollArea
+                .environment(\.openURL, OpenURLAction { url in
+                    if let code = GroupInviteLinkParser.extractInviteCodeFromMessageText(url.absoluteString) {
+                        invitePreviewSheetItem = InvitePreviewSheetItem(code: code)
+                        return .handled
+                    }
+                    return .systemAction
+                })
 
             Divider()
 
@@ -135,9 +156,21 @@ struct ChatRoomView: View {
                 Button {
                     showInfoSheet = true
                 } label: {
-                    Image(systemName: "info.circle")
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: "info.circle")
+                        if pendingJoinBadgeCount > 0 {
+                            Circle()
+                                .fill(Color.orange)
+                                .frame(width: 8, height: 8)
+                                .offset(x: 3, y: -2)
+                        }
+                    }
                 }
-                .accessibilityLabel("Thông tin cuộc trò chuyện")
+                .accessibilityLabel(
+                    pendingJoinBadgeCount > 0
+                        ? "Thông tin cuộc trò chuyện, có \(pendingJoinBadgeCount) yêu cầu tham gia chờ duyệt"
+                        : "Thông tin cuộc trò chuyện"
+                )
             }
         }
         .confirmationDialog(
@@ -218,6 +251,13 @@ struct ChatRoomView: View {
                 }
             )
         }
+        .sheet(item: $invitePreviewSheetItem) { item in
+            JoinGroupSheet(
+                settings: settings,
+                chatStore: chatStore,
+                initialInput: item.code
+            )
+        }
         .fullScreenCover(item: $fullScreenImage) { item in
             FullScreenImageViewer(imageURL: item.url)
         }
@@ -272,7 +312,11 @@ struct ChatRoomView: View {
         if conversation.isGroup {
             let loadedCount = chatStore.groupMembersByConversation[conversationId]?.count
             let count = loadedCount ?? conversation.memberCount ?? 0
-            return count > 0 ? "\(count) thành viên" : "Nhóm trò chuyện"
+            let visibilityLabel = conversation.resolvedGroupVisibility.shortTitle
+            if count > 0 {
+                return "\(visibilityLabel) • \(count) thành viên"
+            }
+            return "Nhóm \(visibilityLabel.lowercased())"
         }
         return ChatDateFormatter.formatPresenceStatus(
             isOnline: conversation.isOnline,
@@ -378,6 +422,9 @@ struct ChatRoomView: View {
                                 },
                                 onTapImage: { url in
                                     fullScreenImage = FullScreenImageItem(url: url)
+                                },
+                                onOpenGroupInvite: { code in
+                                    invitePreviewSheetItem = InvitePreviewSheetItem(code: code)
                                 }
                             )
                             .id(msg.id)

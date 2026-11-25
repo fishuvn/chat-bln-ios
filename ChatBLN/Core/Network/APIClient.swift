@@ -105,7 +105,7 @@ final class APIClient {
         )
     }
 
-    // MARK: - Conversations & Messages
+    // MARK: - Conversations, Group Roles, Invites & Join Approvals
 
     func getConversations() async throws -> [ConversationItemResponse] {
         try await request(path: "/api/conversations", method: "GET")
@@ -119,11 +119,19 @@ final class APIClient {
         )
     }
 
-    func createGroupConversation(name: String, memberIds: [Int64]) async throws -> ConversationResponse {
+    func createGroupConversation(
+        name: String,
+        memberIds: [Int64],
+        groupVisibility: String = GroupVisibility.privateGroup.rawValue
+    ) async throws -> ConversationResponse {
         try await request(
             path: "/api/conversations/group",
             method: "POST",
-            body: CreateGroupConversationRequest(name: name, memberIds: memberIds)
+            body: CreateGroupConversationRequest(
+                name: name,
+                memberIds: memberIds,
+                groupVisibility: groupVisibility
+            )
         )
     }
 
@@ -140,6 +148,96 @@ final class APIClient {
             method: "GET"
         )
     }
+
+    func updateGroupVisibility(
+        conversationId: Int64,
+        groupVisibility: String
+    ) async throws -> ConversationResponse {
+        try await request(
+            path: "/api/conversations/\(conversationId)/visibility",
+            method: "PUT",
+            body: UpdateGroupVisibilityRequest(groupVisibility: groupVisibility)
+        )
+    }
+
+    func regenerateGroupInviteCode(conversationId: Int64) async throws -> RegenerateInviteCodeResponse {
+        try await request(
+            path: "/api/conversations/\(conversationId)/invite-code/regenerate",
+            method: "POST",
+            body: EmptyRequestBody()
+        )
+    }
+
+    func updateGroupMemberRole(
+        conversationId: Int64,
+        targetUserId: Int64,
+        role: String
+    ) async throws -> [GroupMemberDto] {
+        try await request(
+            path: "/api/conversations/\(conversationId)/members/\(targetUserId)/role",
+            method: "PUT",
+            body: UpdateGroupMemberRoleRequest(role: role)
+        )
+    }
+
+    func transferGroupLeader(
+        conversationId: Int64,
+        newLeaderUserId: Int64
+    ) async throws -> [GroupMemberDto] {
+        try await request(
+            path: "/api/conversations/\(conversationId)/leader",
+            method: "PUT",
+            body: TransferGroupLeaderRequest(newLeaderUserId: newLeaderUserId)
+        )
+    }
+
+    func previewGroupInvite(inviteCode: String) async throws -> GroupInvitePreviewResponse {
+        let encoded = inviteCode.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? inviteCode
+        return try await request(
+            path: "/api/conversations/invite/\(encoded)",
+            method: "GET"
+        )
+    }
+
+    func joinGroupByInvite(inviteCode: String) async throws -> JoinGroupResponse {
+        let encoded = inviteCode.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? inviteCode
+        return try await request(
+            path: "/api/conversations/join/\(encoded)",
+            method: "POST",
+            body: EmptyRequestBody()
+        )
+    }
+
+    func getGroupJoinRequests(conversationId: Int64) async throws -> [GroupJoinRequestDto] {
+        try await request(
+            path: "/api/conversations/\(conversationId)/join-requests",
+            method: "GET"
+        )
+    }
+
+    func approveGroupJoinRequest(
+        conversationId: Int64,
+        requestId: Int64
+    ) async throws -> GroupJoinRequestDto {
+        try await request(
+            path: "/api/conversations/\(conversationId)/join-requests/\(requestId)/approve",
+            method: "PUT",
+            body: EmptyRequestBody()
+        )
+    }
+
+    func rejectGroupJoinRequest(
+        conversationId: Int64,
+        requestId: Int64
+    ) async throws -> GroupJoinRequestDto {
+        try await request(
+            path: "/api/conversations/\(conversationId)/join-requests/\(requestId)/reject",
+            method: "PUT",
+            body: EmptyRequestBody()
+        )
+    }
+
+    // MARK: - Messages
 
     func deleteMessages(
         conversationId: Int64,

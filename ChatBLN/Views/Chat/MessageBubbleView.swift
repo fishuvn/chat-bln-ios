@@ -12,6 +12,7 @@ struct MessageBubbleView: View {
     var onStartMultiSelect: (() -> Void)? = nil
     var onRequestDeleteSingle: (() -> Void)? = nil
     var onTapImage: ((URL) -> Void)?
+    var onOpenGroupInvite: ((String) -> Void)? = nil
 
     @Environment(\.openURL) private var openURL
     @State private var videoPlayer: AVPlayer?
@@ -22,6 +23,16 @@ struct MessageBubbleView: View {
 
     private var kind: String {
         message.normalizedAttachmentKind
+    }
+
+    private var invitedGroupCode: String? {
+        if let fromText = GroupInviteLinkParser.extractInviteCodeFromMessageText(message.content) {
+            return fromText
+        }
+        if kind == "LINK", let fromAttachment = GroupInviteLinkParser.extractInviteCodeFromMessageText(message.attachmentUrl) {
+            return fromAttachment
+        }
+        return nil
     }
 
     private var extractedLink: ExtractedMessageLink? {
@@ -98,7 +109,9 @@ struct MessageBubbleView: View {
                             .fixedSize(horizontal: false, vertical: true)
                         }
 
-                        if let link = extractedLink, kind != "IMAGE", kind != "VIDEO", kind != "FILE" {
+                        if let inviteCode = invitedGroupCode {
+                            groupInviteActionCard(inviteCode: inviteCode)
+                        } else if let link = extractedLink, kind != "IMAGE", kind != "VIDEO", kind != "FILE" {
                             linkPreviewCard(link: link)
                         }
                     }
@@ -115,7 +128,13 @@ struct MessageBubbleView: View {
                             Label("Sao chép nội dung", systemImage: "doc.on.doc")
                         }
 
-                        if let attachmentURL {
+                        if let inviteCode = invitedGroupCode, let onOpenGroupInvite {
+                            Button {
+                                onOpenGroupInvite(inviteCode)
+                            } label: {
+                                Label("Xem nhóm mời", systemImage: "person.3.fill")
+                            }
+                        } else if let attachmentURL {
                             Button {
                                 openURL(attachmentURL)
                             } label: {
@@ -168,6 +187,54 @@ struct MessageBubbleView: View {
                 onToggleSelect?()
             }
         }
+    }
+
+    private func groupInviteActionCard(inviteCode: String) -> some View {
+        Button {
+            onOpenGroupInvite?(inviteCode)
+        } label: {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(isOutgoing ? Color.white.opacity(0.22) : Color.chatBLNPrimary.opacity(0.14))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: "person.3.fill")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(isOutgoing ? Color.white : Color.chatBLNPrimary)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Lời mời tham gia nhóm")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(isOutgoing ? Color.white : Color.primary)
+                        .lineLimit(1)
+
+                    Text("Xem nhóm mời • \(inviteCode)")
+                        .font(.caption2)
+                        .foregroundStyle(isOutgoing ? Color.white.opacity(0.85) : Color.chatBLNPrimary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 4)
+
+                Text("Xem nhóm mời")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(isOutgoing ? Color.chatBLNPrimary : Color.white)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(
+                        isOutgoing ? Color.white : Color.chatBLNPrimary,
+                        in: Capsule()
+                    )
+            }
+            .padding(9)
+            .frame(maxWidth: 265)
+            .background(
+                isOutgoing ? Color.black.opacity(0.16) : Color(.tertiarySystemGroupedBackground),
+                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private func imageAttachmentView(url: URL) -> some View {
