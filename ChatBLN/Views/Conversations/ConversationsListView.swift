@@ -236,7 +236,8 @@ private struct ConversationRowView: View {
                 avatarURL: avatarURL,
                 size: 52,
                 isGroup: item.isGroup,
-                isOnline: item.isGroup ? nil : (item.isOnline ?? false)
+                isOnline: item.isGroup ? nil : (item.isOnline ?? false),
+                presenceStatus: item.presenceStatus
             )
 
             VStack(alignment: .leading, spacing: 4) {

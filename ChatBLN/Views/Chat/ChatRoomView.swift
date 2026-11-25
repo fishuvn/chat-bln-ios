@@ -241,7 +241,8 @@ struct ChatRoomView: View {
                     avatarURL: settings.resolveAssetURL(conversation.avatarUrl),
                     size: 32,
                     isGroup: conversation.isGroup,
-                    isOnline: conversation.isGroup ? nil : (conversation.isOnline ?? false)
+                    isOnline: conversation.isGroup ? nil : (conversation.isOnline ?? false),
+                    presenceStatus: conversation.presenceStatus
                 )
 
                 VStack(alignment: .leading, spacing: 1) {
@@ -252,7 +253,14 @@ struct ChatRoomView: View {
 
                     Text(subtitleStatusText)
                         .font(.caption2)
-                        .foregroundStyle(conversation.isOnline == true ? Color.green : .secondary)
+                        .foregroundStyle(
+                            conversation.isGroup
+                                ? .secondary
+                                : ChatDateFormatter.presenceTintColor(
+                                    isOnline: conversation.isOnline,
+                                    presenceStatus: conversation.presenceStatus
+                                )
+                        )
                         .lineLimit(1)
                 }
             }
@@ -268,6 +276,7 @@ struct ChatRoomView: View {
         }
         return ChatDateFormatter.formatPresenceStatus(
             isOnline: conversation.isOnline,
+            presenceStatus: conversation.presenceStatus,
             lastSeen: conversation.lastSeen
         )
     }

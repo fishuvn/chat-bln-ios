@@ -50,7 +50,8 @@ struct ConversationInfoSheet: View {
                             avatarURL: settings.resolveAssetURL(liveConversation.avatarUrl),
                             size: 80,
                             isGroup: liveConversation.isGroup,
-                            isOnline: liveConversation.isGroup ? nil : (liveConversation.isOnline ?? false)
+                            isOnline: liveConversation.isGroup ? nil : (liveConversation.isOnline ?? false),
+                            presenceStatus: liveConversation.presenceStatus
                         )
 
                         Text(liveConversation.displayName)
@@ -59,7 +60,14 @@ struct ConversationInfoSheet: View {
 
                         Text(statusSubtitle)
                             .font(.subheadline)
-                            .foregroundStyle(liveConversation.isOnline == true && !liveConversation.isGroup ? Color.green : .secondary)
+                            .foregroundStyle(
+                                liveConversation.isGroup
+                                    ? .secondary
+                                    : ChatDateFormatter.presenceTintColor(
+                                        isOnline: liveConversation.isOnline,
+                                        presenceStatus: liveConversation.presenceStatus
+                                    )
+                            )
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
@@ -331,7 +339,8 @@ struct ConversationInfoSheet: View {
                 name: member.displayName,
                 avatarURL: settings.resolveAssetURL(member.avatarUrl),
                 size: 42,
-                isOnline: member.isOnline ?? false
+                isOnline: member.isOnline ?? false,
+                presenceStatus: member.presenceStatus
             )
 
             VStack(alignment: .leading, spacing: 3) {
@@ -433,6 +442,7 @@ struct ConversationInfoSheet: View {
         }
         return ChatDateFormatter.formatPresenceStatus(
             isOnline: liveConversation.isOnline,
+            presenceStatus: liveConversation.presenceStatus,
             lastSeen: liveConversation.lastSeen
         )
     }

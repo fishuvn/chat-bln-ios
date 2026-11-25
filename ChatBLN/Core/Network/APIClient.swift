@@ -89,6 +89,14 @@ final class APIClient {
         try await request(path: "/api/users/me", method: "PUT", body: payload)
     }
 
+    func updateMyPresence(status: String) async throws -> UserProfileResponse {
+        try await request(
+            path: "/api/users/me/presence",
+            method: "PUT",
+            body: UpdatePresenceRequest(presenceStatus: status)
+        )
+    }
+
     func searchUsers(keyword: String) async throws -> [UserSearchResponse] {
         try await request(
             path: "/api/users/search",

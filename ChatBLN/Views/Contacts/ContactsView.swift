@@ -132,7 +132,8 @@ struct ContactsView: View {
                         name: friend.displayName,
                         avatarURL: settings.resolveAssetURL(friend.avatarUrl),
                         size: 48,
-                        isOnline: friend.isOnline ?? false
+                        isOnline: friend.isOnline ?? false,
+                        presenceStatus: friend.presenceStatus
                     )
 
                     VStack(alignment: .leading, spacing: 3) {
@@ -140,9 +141,9 @@ struct ContactsView: View {
                             .font(.body.weight(.semibold))
                             .foregroundStyle(.primary)
 
-                        Text("@\(friend.username) • \(ChatDateFormatter.formatPresenceStatus(isOnline: friend.isOnline, lastSeen: friend.lastSeen))")
+                        Text("@\(friend.username) • \(ChatDateFormatter.formatPresenceStatus(isOnline: friend.isOnline, presenceStatus: friend.presenceStatus, lastSeen: friend.lastSeen))")
                             .font(.caption)
-                            .foregroundStyle(friend.isOnline == true ? Color.green : .secondary)
+                            .foregroundStyle(ChatDateFormatter.presenceTintColor(isOnline: friend.isOnline, presenceStatus: friend.presenceStatus))
                             .lineLimit(1)
                     }
 

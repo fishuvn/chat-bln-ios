@@ -6,6 +6,15 @@ struct AvatarView: View {
     var size: CGFloat = 48
     var isGroup: Bool = false
     var isOnline: Bool? = nil
+    var presenceStatus: String? = nil
+
+    private var resolvedDotColor: Color {
+        guard isOnline == true else {
+            return Color(.systemGray4)
+        }
+        let mode = UserPresenceMode.fromServer(presenceStatus)
+        return mode == .offline ? Color(.systemGray4) : mode.dotColor
+    }
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -13,9 +22,9 @@ struct AvatarView: View {
                 .frame(width: size, height: size)
                 .clipShape(Circle())
 
-            if let isOnline, !isGroup {
+            if isOnline != nil, !isGroup {
                 Circle()
-                    .fill(isOnline ? Color.green : Color(.systemGray4))
+                    .fill(resolvedDotColor)
                     .frame(width: max(10, size * 0.26), height: max(10, size * 0.26))
                     .overlay(
                         Circle()

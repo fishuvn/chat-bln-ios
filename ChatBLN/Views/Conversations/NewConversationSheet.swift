@@ -135,7 +135,8 @@ struct NewConversationSheet: View {
                     name: friend.displayName,
                     avatarURL: settings.resolveAssetURL(friend.avatarUrl),
                     size: 44,
-                    isOnline: friend.isOnline ?? false
+                    isOnline: friend.isOnline ?? false,
+                    presenceStatus: friend.presenceStatus
                 )
 
                 VStack(alignment: .leading, spacing: 2) {

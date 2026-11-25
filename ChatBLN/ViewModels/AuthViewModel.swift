@@ -182,6 +182,9 @@ final class AuthViewModel {
 
     private func applyProfile(_ profile: UserProfileResponse) {
         currentProfile = profile
+        if let rawPresence = profile.presenceStatus, !rawPresence.isEmpty {
+            settings.presenceMode = UserPresenceMode.fromServer(rawPresence)
+        }
         settings.cachedUser = CachedSessionUser(
             id: profile.id,
             username: profile.username,

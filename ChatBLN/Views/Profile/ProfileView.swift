@@ -220,7 +220,8 @@ struct ProfileView: View {
                         name: fullName.isEmpty ? (authViewModel.currentProfile?.displayName ?? "U") : fullName,
                         avatarURL: settings.resolveAssetURL(authViewModel.currentProfile?.avatarUrl),
                         size: 92,
-                        isOnline: settings.presenceMode != .offline
+                        isOnline: settings.presenceMode != .offline,
+                        presenceStatus: settings.presenceMode.rawValue
                     )
 
                     PhotosPicker(

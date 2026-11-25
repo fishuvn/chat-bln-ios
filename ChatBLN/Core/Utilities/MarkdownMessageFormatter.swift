@@ -193,9 +193,21 @@ enum ChatDateFormatter {
         return formatter.string(from: date)
     }
 
-    static func formatPresenceStatus(isOnline: Bool?, lastSeen: String?) -> String {
+    static func formatPresenceStatus(isOnline: Bool?, presenceStatus: String? = nil, lastSeen: String?) -> String {
         if isOnline == true {
-            return "Đang hoạt động"
+            let mode = UserPresenceMode.fromServer(presenceStatus)
+            switch mode {
+            case .online:
+                return "Trực tuyến"
+            case .idle:
+                return "Tạm vắng (Idle)"
+            case .sleep:
+                return "Chế độ ngủ (Sleep)"
+            case .dnd:
+                return "Không làm phiền (DND)"
+            case .offline:
+                break
+            }
         }
         guard let date = parseBackendDate(lastSeen) else {
             return "Ngoại tuyến"
@@ -214,5 +226,11 @@ enum ChatDateFormatter {
         }
         let days = hours / 24
         return "Hoạt động \(days) ngày trước"
+    }
+
+    static func presenceTintColor(isOnline: Bool?, presenceStatus: String? = nil) -> Color {
+        guard isOnline == true else { return .secondary }
+        let mode = UserPresenceMode.fromServer(presenceStatus)
+        return mode == .offline ? .secondary : mode.dotColor
     }
 }

@@ -39,6 +39,7 @@ struct GroupMemberDto: Codable, Identifiable, Hashable, Sendable {
     var avatarUrl: String?
     let role: String?
     var isOnline: Bool?
+    var presenceStatus: String? = nil
     var lastSeen: String?
     let joinedAt: String?
 
@@ -114,12 +115,17 @@ struct UserProfileResponse: Codable, Identifiable, Hashable, Sendable {
     var bio: String?
     var avatarUrl: String?
     var isOnline: Bool?
+    var presenceStatus: String? = nil
     var lastSeen: String?
 
     var displayName: String {
         let trimmed = fullName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? username : trimmed
     }
+}
+
+struct UpdatePresenceRequest: Codable, Hashable, Sendable {
+    let presenceStatus: String
 }
 
 struct UpdateProfileRequest: Codable, Hashable, Sendable {
@@ -138,6 +144,7 @@ struct UserSearchResponse: Codable, Identifiable, Hashable, Sendable {
     let fullName: String?
     let avatarUrl: String?
     var isOnline: Bool?
+    var presenceStatus: String? = nil
     var isFriend: Bool?
     var friendshipStatus: String?
 
@@ -155,6 +162,7 @@ struct ConversationItemResponse: Codable, Identifiable, Hashable, Sendable {
     let type: String
     var avatarUrl: String?
     var isOnline: Bool?
+    var presenceStatus: String? = nil
     let targetUserId: Int64?
     var targetUsername: String?
     var email: String?
@@ -305,6 +313,7 @@ struct FriendResponse: Codable, Identifiable, Hashable, Sendable {
     let fullName: String?
     var avatarUrl: String?
     var isOnline: Bool?
+    var presenceStatus: String? = nil
     var lastSeen: String?
 
     var displayName: String {
@@ -349,5 +358,6 @@ struct PresenceEvent: Codable, Hashable, Sendable {
     let userId: Int64
     let username: String
     let isOnline: Bool?
+    let presenceStatus: String?
     let lastSeen: String?
 }

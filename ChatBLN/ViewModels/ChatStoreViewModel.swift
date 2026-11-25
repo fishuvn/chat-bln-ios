@@ -60,16 +60,11 @@ final class ChatStoreViewModel {
 
     func bootstrapSession(token: String, currentUsername: String) async {
         self.currentUsername = currentUsername
-        if settings.presenceMode == .offline {
-            stompClient.disconnect()
-            _ = try? await apiClient.logout()
-        } else {
-            stompClient.subscribe(topic: "/topic/presence")
-            stompClient.subscribe(topic: "/topic/users/\(currentUsername)")
-            stompClient.subscribe(topic: "/topic/users/\(currentUsername)/deletions")
-            stompClient.subscribe(topic: "/topic/friendships/\(currentUsername)")
-            stompClient.connect(token: token)
-        }
+        stompClient.subscribe(topic: "/topic/presence")
+        stompClient.subscribe(topic: "/topic/users/\(currentUsername)")
+        stompClient.subscribe(topic: "/topic/users/\(currentUsername)/deletions")
+        stompClient.subscribe(topic: "/topic/friendships/\(currentUsername)")
+        stompClient.connect(token: token)
 
         async let conversationsLoad: Void = loadConversations()
         async let friendsLoad: Void = loadFriends()
@@ -79,25 +74,14 @@ final class ChatStoreViewModel {
 
     func setUserPresenceMode(_ mode: UserPresenceMode) async {
         settings.presenceMode = mode
-        if mode == .offline {
-            stompClient.disconnect()
-            isRealtimeConnected = false
-            _ = try? await apiClient.logout()
-        } else {
-            if !isRealtimeConnected {
-                reconnectRealtimeIfAuthenticated()
-            }
-            await loadConversations()
+        if !isRealtimeConnected {
+            reconnectRealtimeIfAuthenticated()
         }
+        _ = try? await apiClient.updateMyPresence(status: mode.rawValue)
     }
 
     func reconnectRealtimeIfAuthenticated() {
         guard let token = KeychainService.readToken(), !token.isEmpty, !currentUsername.isEmpty else {
-            return
-        }
-        guard settings.presenceMode != .offline else {
-            stompClient.disconnect()
-            isRealtimeConnected = false
             return
         }
         stompClient.disconnect()
@@ -602,12 +586,21 @@ final class ChatStoreViewModel {
 
     private func handleIncomingPresence(_ event: PresenceEvent) {
         let onlineFlag = event.isOnline ?? false
+        let resolvedStatus = event.presenceStatus ?? (onlineFlag ? "ONLINE" : "OFFLINE")
+
+        if event.username.lowercased() == currentUsername.lowercased() {
+            if onlineFlag {
+                settings.presenceMode = UserPresenceMode.fromServer(resolvedStatus)
+            }
+        }
+
         for index in conversations.indices {
             guard !conversations[index].isGroup else { continue }
             let matchesId = conversations[index].targetUserId == event.userId
             let matchesUsername = conversations[index].targetUsername?.lowercased() == event.username.lowercased()
             if matchesId || matchesUsername {
                 conversations[index].isOnline = onlineFlag
+                conversations[index].presenceStatus = resolvedStatus
                 if let lastSeen = event.lastSeen {
                     conversations[index].lastSeen = lastSeen
                 }
@@ -618,6 +611,7 @@ final class ChatStoreViewModel {
             if friends[index].id == event.userId ||
                 friends[index].username.lowercased() == event.username.lowercased() {
                 friends[index].isOnline = onlineFlag
+                friends[index].presenceStatus = resolvedStatus
                 if let lastSeen = event.lastSeen {
                     friends[index].lastSeen = lastSeen
                 }
@@ -629,6 +623,7 @@ final class ChatStoreViewModel {
             for idx in members.indices {
                 if members[idx].id == event.userId {
                     members[idx].isOnline = onlineFlag
+                    members[idx].presenceStatus = resolvedStatus
                     if let lastSeen = event.lastSeen {
                         members[idx].lastSeen = lastSeen
                     }

@@ -3,23 +3,45 @@ import Observation
 import SwiftUI
 
 enum UserPresenceMode: String, CaseIterable, Identifiable, Codable, Sendable {
-    case online = "online"
-    case away = "away"
-    case busy = "busy"
-    case offline = "offline"
+    case online = "ONLINE"
+    case idle = "IDLE"
+    case sleep = "SLEEP"
+    case dnd = "DND"
+    case offline = "OFFLINE"
 
     var id: String { rawValue }
+
+    static func fromServer(_ raw: String?) -> UserPresenceMode {
+        guard let clean = raw?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
+              !clean.isEmpty else {
+            return .online
+        }
+        switch clean {
+        case "IDLE", "AWAY":
+            return .idle
+        case "SLEEP":
+            return .sleep
+        case "DND", "BUSY":
+            return .dnd
+        case "OFFLINE", "INVISIBLE":
+            return .offline
+        default:
+            return .online
+        }
+    }
 
     var title: String {
         switch self {
         case .online:
-            return "Trực tuyến"
-        case .away:
-            return "Tạm vắng"
-        case .busy:
-            return "Đang bận"
+            return "Trực tuyến (Online)"
+        case .idle:
+            return "Tạm vắng (Idle)"
+        case .sleep:
+            return "Chế độ ngủ (Sleep)"
+        case .dnd:
+            return "Không làm phiền (DND)"
         case .offline:
-            return "Ẩn trạng thái (Ngoại tuyến)"
+            return "Ẩn trạng thái (Offline)"
         }
     }
 
@@ -27,12 +49,14 @@ enum UserPresenceMode: String, CaseIterable, Identifiable, Codable, Sendable {
         switch self {
         case .online:
             return "Trực tuyến"
-        case .away:
+        case .idle:
             return "Tạm vắng"
-        case .busy:
-            return "Đang bận"
+        case .sleep:
+            return "Chế độ ngủ"
+        case .dnd:
+            return "Không làm phiền"
         case .offline:
-            return "Ngoại tuyến"
+            return "Ẩn trạng thái"
         }
     }
 
@@ -40,12 +64,14 @@ enum UserPresenceMode: String, CaseIterable, Identifiable, Codable, Sendable {
         switch self {
         case .online:
             return "Đang hoạt động và nhận tin nhắn tức thì"
-        case .away:
+        case .idle:
             return "Tạm rời máy, vẫn nhận tin nhắn mới"
-        case .busy:
-            return "Không làm phiền, tắt báo hiệu chưa đọc"
+        case .sleep:
+            return "Đang nghỉ ngơi, hiển thị biểu tượng ngủ cho bạn bè"
+        case .dnd:
+            return "Đang bận / Không làm phiền"
         case .offline:
-            return "Ẩn chấm xanh trực tuyến với mọi người"
+            return "Ẩn trạng thái hoạt động với mọi người"
         }
     }
 
@@ -53,12 +79,14 @@ enum UserPresenceMode: String, CaseIterable, Identifiable, Codable, Sendable {
         switch self {
         case .online:
             return "checkmark.circle.fill"
-        case .away:
+        case .idle:
             return "clock.fill"
-        case .busy:
+        case .sleep:
+            return "moon.zzz.fill"
+        case .dnd:
             return "minus.circle.fill"
         case .offline:
-            return "moon.zzz.fill"
+            return "eye.slash.fill"
         }
     }
 
@@ -66,9 +94,11 @@ enum UserPresenceMode: String, CaseIterable, Identifiable, Codable, Sendable {
         switch self {
         case .online:
             return .green
-        case .away:
-            return .yellow
-        case .busy:
+        case .idle:
+            return .orange
+        case .sleep:
+            return .indigo
+        case .dnd:
             return .red
         case .offline:
             return Color(.systemGray)
@@ -182,9 +212,8 @@ final class AppSettings {
             self.appearanceMode = .system
         }
 
-        if let rawPresence = UserDefaults.standard.string(forKey: Keys.presenceMode),
-           let pMode = UserPresenceMode(rawValue: rawPresence) {
-            self.presenceMode = pMode
+        if let rawPresence = UserDefaults.standard.string(forKey: Keys.presenceMode) {
+            self.presenceMode = UserPresenceMode.fromServer(rawPresence)
         } else {
             self.presenceMode = .online
         }

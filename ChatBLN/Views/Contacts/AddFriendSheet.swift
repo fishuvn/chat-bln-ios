@@ -111,7 +111,8 @@ struct AddFriendSheet: View {
                 name: user.displayName,
                 avatarURL: settings.resolveAssetURL(user.avatarUrl),
                 size: 46,
-                isOnline: user.isOnline ?? false
+                isOnline: user.isOnline ?? false,
+                presenceStatus: user.presenceStatus
             )
 
             VStack(alignment: .leading, spacing: 2) {
