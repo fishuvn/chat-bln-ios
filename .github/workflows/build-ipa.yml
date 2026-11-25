@@ -192,13 +192,17 @@ jobs:
           fi
 
           git tag -fa "$TAG" -m "Release ${TAG}"
-          git push origin "refs/tags/${TAG}" --force
+          for attempt in 1 2 3; do
+            git push origin "refs/tags/${TAG}" --force && break
+            sleep 2
+          done || echo "Notice: action-gh-release will create tag ${TAG} via REST API."
 
       - name: Publish GitHub Release Automatically
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.ver.outputs.tag }}
+          target_commitish: main
           name: "Chat BLN iOS ${{ steps.ver.outputs.tag }}"
           body_path: dist-ipa/FULL_RELEASE_BODY.md
           draft: false
