@@ -2,6 +2,14 @@
 
 Quy ước phiên bản: `1.0.x` / `1.x.x` cho các bản cập nhật và sửa lỗi nhỏ (mỗi bậc tối đa `10`, ví dụ `1.0.10` → `1.1.0`); `x.0.0` dành cho thay đổi lớn về kiến trúc, ngôn ngữ lập trình, nâng phiên bản HĐH tối thiểu hoặc đại tu UI/UX.
 
+## v2.0.0 — Chat BLN iOS (2026-11-26 02:10 UTC+7)
+
+- **Phiên bản**: `v2.0.0` (Build `20000`)
+- **Phân loại**: Cập nhật lớn (`x.0.0` — Kiến trúc / Ngôn ngữ / HĐH / Đại tu UI-UX)
+
+### 🚀 Thay đổi lớn (Cấu trúc / HĐH / UI-UX)
+- ui!: complete minimalist Apple HIG redesign, accessibility, forgot-password OTP, and image cache optimization (`8ce5905`)
+
 ## v1.0.2 — Chat BLN iOS (2026-11-26 01:26 UTC+7)
 
 - **Phiên bản**: `v1.0.2` (Build `10002`)
