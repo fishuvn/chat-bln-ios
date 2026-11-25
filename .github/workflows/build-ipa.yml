@@ -1,0 +1,171 @@
+name: Build iOS 18+ IPA
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Tạo bản GitHub Release đính kèm file IPA iOS 18+ ngay sau khi build'
+        required: false
+        default: false
+        type: boolean
+      release_tag:
+        description: 'Tên tag phát hành (khi bật create_release)'
+        required: false
+        default: 'v1.0.0'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-ipa:
+    name: Build ChatBLN-iOS18.ipa (Xcode 16 / iOS 18+)
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 16+ (iOS 18+ SDK)
+        run: |
+          LATEST_XCODE=$(ls -d /Applications/Xcode_16*.app /Applications/Xcode*.app 2>/dev/null | sort -V | tail -n 1)
+          if [ -n "$LATEST_XCODE" ]; then
+            echo "Selecting $LATEST_XCODE"
+            sudo xcode-select -s "$LATEST_XCODE/Contents/Developer"
+          fi
+          xcodebuild -version
+          xcodebuild -showsdks
+
+      - name: Build & Package IPA for iOS 18+
+        env:
+          IOS_CERT_BASE64: ${{ secrets.IOS_CERT_BASE64 }}
+          IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
+          IOS_PROVISION_BASE64: ${{ secrets.IOS_PROVISION_BASE64 }}
+          EXPORT_OPTIONS_PLIST_BASE64: ${{ secrets.EXPORT_OPTIONS_PLIST_BASE64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist-ipa build
+
+          if [ -n "$IOS_CERT_BASE64" ] && [ -n "$IOS_PROVISION_BASE64" ] && [ -n "$EXPORT_OPTIONS_PLIST_BASE64" ]; then
+            echo "Building Apple-signed IPA from configured repository secrets..."
+            KEYCHAIN_PATH="$RUNNER_TEMP/chatbln-signing.keychain-db"
+            KEYCHAIN_PASS="chatbln_temp_kc_pass"
+            CERT_PATH="$RUNNER_TEMP/cert.p12"
+            PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+            EXPORT_PLIST="$RUNNER_TEMP/ExportOptions.plist"
+
+            echo "$IOS_CERT_BASE64" | base64 --decode > "$CERT_PATH"
+            echo "$EXPORT_OPTIONS_PLIST_BASE64" | base64 --decode > "$EXPORT_PLIST"
+            mkdir -p "$PROFILE_DIR"
+            PROFILE_TMP="$RUNNER_TEMP/profile.mobileprovision"
+            echo "$IOS_PROVISION_BASE64" | base64 --decode > "$PROFILE_TMP"
+            UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< "$(security cms -D -i "$PROFILE_TMP")")
+            cp "$PROFILE_TMP" "$PROFILE_DIR/$UUID.mobileprovision"
+
+            security create-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN_PATH"
+            security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+            security unlock-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN_PATH"
+            security import "$CERT_PATH" -P "$IOS_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+            security list-keychain -d user -s "$KEYCHAIN_PATH"
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASS" "$KEYCHAIN_PATH"
+
+            xcodebuild clean archive \
+              -project ChatBLN.xcodeproj \
+              -scheme ChatBLN \
+              -configuration Release \
+              -sdk iphoneos \
+              -archivePath build/ChatBLN.xcarchive \
+              IPHONEOS_DEPLOYMENT_TARGET=18.0 \
+              ARCHS=arm64
+
+            xcodebuild -exportArchive \
+              -archivePath build/ChatBLN.xcarchive \
+              -exportOptionsPlist "$EXPORT_PLIST" \
+              -exportPath build/export
+
+            IPA_FOUND=$(ls build/export/*.ipa | head -n 1)
+            cp "$IPA_FOUND" dist-ipa/ChatBLN-iOS18.ipa
+          else
+            echo "Building Release iOS 18+ arm64 IPA (unsigned / sideload-ready)..."
+            xcodebuild clean build \
+              -project ChatBLN.xcodeproj \
+              -scheme ChatBLN \
+              -configuration Release \
+              -sdk iphoneos \
+              -derivedDataPath build/DerivedData \
+              IPHONEOS_DEPLOYMENT_TARGET=18.0 \
+              ARCHS=arm64 \
+              ONLY_ACTIVE_ARCH=NO \
+              CODE_SIGN_IDENTITY="" \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO
+
+            APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/ChatBLN.app"
+            if [ ! -d "$APP_PATH" ]; then
+              echo "ERROR: ChatBLN.app was not produced at $APP_PATH"
+              exit 1
+            fi
+
+            mkdir -p build/ipa/Payload
+            cp -R "$APP_PATH" build/ipa/Payload/ChatBLN.app
+            (cd build/ipa && zip -qry ../../dist-ipa/ChatBLN-iOS18.ipa Payload)
+          fi
+
+          if [ ! -s dist-ipa/ChatBLN-iOS18.ipa ]; then
+            echo "ERROR: ChatBLN-iOS18.ipa is missing or empty"
+            exit 1
+          fi
+
+          (cd dist-ipa && shasum -a 256 ChatBLN-iOS18.ipa > SHA256SUMS.txt)
+
+          {
+            echo "## iOS 18+ IPA Artifact"
+            echo ""
+            echo "| File IPA | Hệ điều hành đích | Kiến trúc | Dung lượng |"
+            echo "| :--- | :--- | :--- | :--- |"
+            echo "| \`ChatBLN-iOS18.ipa\` | iOS 18.0+ | \`arm64\` | $(du -h dist-ipa/ChatBLN-iOS18.ipa | cut -f1) |"
+            echo ""
+            echo "### SHA-256 Checksum"
+            echo '```text'
+            cat dist-ipa/SHA256SUMS.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload IPA (iOS 18+)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChatBLN-iOS18-IPA
+          path: |
+            dist-ipa/ChatBLN-iOS18.ipa
+            dist-ipa/SHA256SUMS.txt
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release (IPA iOS 18+)
+    needs: build-ipa
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.create_release == true)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Built IPA
+        uses: actions/download-artifact@v4
+        with:
+          name: ChatBLN-iOS18-IPA
+          path: release-assets
+
+      - name: Publish Release with iOS 18+ IPA
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || inputs.release_tag }}
+          name: "Chat BLN iOS ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || inputs.release_tag }}"
+          generate_release_notes: true
+          files: |
+            release-assets/ChatBLN-iOS18.ipa
+            release-assets/SHA256SUMS.txt
