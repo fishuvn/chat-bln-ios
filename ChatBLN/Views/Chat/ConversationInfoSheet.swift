@@ -255,23 +255,34 @@ struct ConversationInfoSheet: View {
                     HStack(spacing: 8) {
                         let visibility = liveConversation.resolvedGroupVisibility
                         let isPublic = visibility == .publicGroup
-                        Label(visibility.title, systemImage: visibility.iconName)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(isPublic ? Color(.systemGreen) : Color(.secondaryLabel))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(Color(.tertiarySystemFill), in: Capsule())
+                        HStack(spacing: 5) {
+                            Image(systemName: visibility.iconName)
+                                .font(.system(size: 11, weight: .semibold))
+                            Text(visibility.title)
+                                .font(.caption.weight(.semibold))
+                                .lineLimit(1)
+                        }
+                        .foregroundStyle(isPublic ? Color(.systemGreen) : Color(.secondaryLabel))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color(.tertiarySystemFill), in: Capsule())
+                        .fixedSize(horizontal: true, vertical: false)
 
                         roleBadgeView(for: liveConversation.resolvedGroupRole)
                     }
 
                     if liveConversation.canCurrentUserManageGroupRequests && effectivePendingCount > 0 {
-                        Label("\(effectivePendingCount) yêu cầu tham gia chờ duyệt", systemImage: "person.crop.circle.badge.clock")
-                            .font(.caption.weight(.semibold).monospacedDigit())
-                            .foregroundStyle(Color(.systemOrange))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 5)
-                            .background(Color(.systemOrange).opacity(0.14), in: Capsule())
+                        HStack(spacing: 5) {
+                            Image(systemName: "person.crop.circle.badge.clock")
+                                .font(.system(size: 11, weight: .semibold))
+                            Text("\(effectivePendingCount) yêu cầu tham gia chờ duyệt")
+                                .font(.caption.weight(.semibold).monospacedDigit())
+                                .lineLimit(1)
+                        }
+                        .foregroundStyle(Color(.systemOrange))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 5)
+                        .background(Color(.systemOrange).opacity(0.14), in: Capsule())
                     }
                 }
             }
@@ -340,43 +351,67 @@ struct ConversationInfoSheet: View {
                             deleteError = nil
                             actionNotice = "Đã sao chép liên kết mời nhóm vào bộ nhớ tạm."
                         } label: {
-                            Label("Sao chép", systemImage: "doc.on.doc")
-                                .font(.footnote.weight(.semibold))
-                                .frame(maxWidth: .infinity, minHeight: 36)
+                            HStack(spacing: 5) {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.system(size: 12, weight: .semibold))
+                                Text("Sao chép")
+                                    .font(.footnote.weight(.semibold))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.85)
+                            }
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity, minHeight: 38)
+                            .padding(.horizontal, 8)
+                            .background(Color.chatBLNPrimary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .tint(.chatBLNPrimary)
+                        .buttonStyle(.plain)
 
                         if let shareURL = URL(string: shareURLString) {
                             ShareLink(
                                 item: shareURL,
                                 message: Text("Mời bạn tham gia nhóm \"\(liveConversation.displayName)\" trên Chat BLN")
                             ) {
-                                Label("Chia sẻ", systemImage: "square.and.arrow.up")
-                                    .font(.footnote.weight(.semibold))
-                                    .frame(maxWidth: .infinity, minHeight: 36)
+                                HStack(spacing: 5) {
+                                    Image(systemName: "square.and.arrow.up")
+                                        .font(.system(size: 12, weight: .semibold))
+                                    Text("Chia sẻ")
+                                        .font(.footnote.weight(.semibold))
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.85)
+                                }
+                                .foregroundStyle(Color.chatBLNPrimary)
+                                .frame(maxWidth: .infinity, minHeight: 38)
+                                .padding(.horizontal, 8)
+                                .background(Color.chatBLNPrimary.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                             }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
+                            .buttonStyle(.plain)
                         }
 
                         if liveConversation.canCurrentUserManageGroupRequests {
                             Button {
                                 showRegenerateInviteConfirm = true
                             } label: {
-                                if isRegeneratingInvite {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                        .frame(minHeight: 36)
-                                } else {
-                                    Label("Đổi link", systemImage: "arrow.triangle.2.circlepath")
-                                        .font(.footnote.weight(.semibold))
-                                        .frame(minHeight: 36)
+                                Group {
+                                    if isRegeneratingInvite {
+                                        ProgressView()
+                                            .controlSize(.small)
+                                    } else {
+                                        HStack(spacing: 5) {
+                                            Image(systemName: "arrow.triangle.2.circlepath")
+                                                .font(.system(size: 12, weight: .semibold))
+                                            Text("Đổi link")
+                                                .font(.footnote.weight(.semibold))
+                                                .lineLimit(1)
+                                                .minimumScaleFactor(0.85)
+                                        }
+                                    }
                                 }
+                                .foregroundStyle(Color.chatBLNPrimary)
+                                .frame(maxWidth: .infinity, minHeight: 38)
+                                .padding(.horizontal, 8)
+                                .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                             }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
+                            .buttonStyle(.plain)
                             .disabled(isRegeneratingInvite)
                         }
                     }
@@ -712,12 +747,18 @@ struct ConversationInfoSheet: View {
             }
         }()
 
-        return Label(role.title, systemImage: role.iconName)
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(fg)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(bg, in: Capsule())
+        return HStack(spacing: 4) {
+            Image(systemName: role.iconName)
+                .font(.system(size: 10, weight: .semibold))
+            Text(role.title)
+                .font(.caption2.weight(.semibold))
+                .lineLimit(1)
+        }
+        .foregroundStyle(fg)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(bg, in: Capsule())
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     private func groupMemberRow(_ member: GroupMemberDto) -> some View {
@@ -725,24 +766,26 @@ struct ConversationInfoSheet: View {
         let matchedFriend = chatStore.friends.first(where: { $0.id == member.id })
         let isMemberBusy = processingMemberIds.contains(member.id)
 
-        return HStack(spacing: 12) {
+        return HStack(spacing: 10) {
             AvatarView(
                 name: member.displayName,
                 avatarURL: settings.resolveAssetURL(member.avatarUrl),
-                size: 42,
+                size: 40,
                 isOnline: member.isOnline ?? false,
                 presenceStatus: member.presenceStatus
             )
 
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
+                HStack(spacing: 5) {
                     Text(member.displayName)
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
+                        .truncationMode(.tail)
                     if isMe {
                         Text("(Bạn)")
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: true, vertical: false)
                     }
                 }
 
@@ -751,18 +794,20 @@ struct ConversationInfoSheet: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                        .truncationMode(.tail)
 
                     roleBadgeView(for: member.resolvedRole)
                 }
             }
+            .layoutPriority(1)
 
-            Spacer()
+            Spacer(minLength: 4)
 
             if isMemberBusy {
                 ProgressView()
                     .controlSize(.small)
             } else if !isMe {
-                HStack(spacing: 2) {
+                HStack(spacing: 4) {
                     if let matchedFriend {
                         Button {
                             dismiss()
@@ -773,7 +818,7 @@ struct ConversationInfoSheet: View {
                             Image(systemName: "bubble.right")
                                 .font(.subheadline.weight(.medium))
                                 .foregroundStyle(Color.chatBLNPrimary)
-                                .frame(width: 44, height: 44)
+                                .frame(width: 34, height: 34)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.borderless)
@@ -787,7 +832,7 @@ struct ConversationInfoSheet: View {
                             Image(systemName: "person.badge.plus")
                                 .font(.subheadline.weight(.medium))
                                 .foregroundStyle(Color.chatBLNPrimary)
-                                .frame(width: 44, height: 44)
+                                .frame(width: 34, height: 34)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.borderless)
@@ -825,7 +870,7 @@ struct ConversationInfoSheet: View {
                             Image(systemName: "ellipsis.circle")
                                 .font(.body)
                                 .foregroundStyle(.secondary)
-                                .frame(width: 44, height: 44)
+                                .frame(width: 34, height: 34)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.borderless)

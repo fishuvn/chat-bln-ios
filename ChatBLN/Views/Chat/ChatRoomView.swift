@@ -152,63 +152,85 @@ struct ChatRoomView: View {
             ToolbarItem(placement: .principal) {
                 headerTitleButton
             }
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button {
-                    toggleWithMotion {
-                        isSelectingMessages.toggle()
-                        if !isSelectingMessages {
+            ToolbarItem(placement: .topBarTrailing) {
+                if isSelectingMessages {
+                    Button("Xong") {
+                        toggleWithMotion {
+                            isSelectingMessages = false
                             selectedMessageIds.removeAll()
                         }
                     }
-                } label: {
-                    Image(systemName: isSelectingMessages ? "checkmark.circle.fill" : "checkmark.circle")
-                        .frame(minWidth: 44, minHeight: 44)
-                }
-                .accessibilityLabel(isSelectingMessages ? "Thoát chế độ chọn tin nhắn" : "Chọn nhiều tin nhắn")
+                    .font(.subheadline.weight(.semibold))
+                } else {
+                    Menu {
+                        Button {
+                            showInfoSheet = true
+                        } label: {
+                            if pendingJoinBadgeCount > 0 {
+                                Label(
+                                    conversation.isGroup
+                                        ? "Thông tin nhóm (\(pendingJoinBadgeCount) chờ duyệt)"
+                                        : "Thông tin hội thoại",
+                                    systemImage: "info.circle"
+                                )
+                            } else {
+                                Label(
+                                    conversation.isGroup ? "Thông tin nhóm" : "Thông tin hội thoại",
+                                    systemImage: "info.circle"
+                                )
+                            }
+                        }
 
-                Button {
-                    toggleWithMotion {
-                        isSearchBarVisible.toggle()
-                        if !isSearchBarVisible {
-                            inChatSearchQuery = ""
+                        Button {
+                            toggleWithMotion {
+                                isSearchBarVisible.toggle()
+                                if !isSearchBarVisible {
+                                    inChatSearchQuery = ""
+                                }
+                            }
+                        } label: {
+                            Label(
+                                isSearchBarVisible ? "Đóng tìm kiếm" : "Tìm tin nhắn",
+                                systemImage: "magnifyingglass"
+                            )
+                        }
+
+                        Button {
+                            toggleWithMotion {
+                                isSelectingMessages = true
+                            }
+                        } label: {
+                            Label("Chọn nhiều tin nhắn", systemImage: "checkmark.circle")
+                        }
+                    } label: {
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: "ellipsis")
+                                .font(.body.weight(.semibold))
+                                .frame(minWidth: 32, minHeight: 32)
+                            if pendingJoinBadgeCount > 0 {
+                                Circle()
+                                    .fill(Color(.systemOrange))
+                                    .frame(width: 8, height: 8)
+                                    .offset(x: 1, y: 1)
+                            }
                         }
                     }
-                } label: {
-                    Image(systemName: isSearchBarVisible ? "magnifyingglass.circle.fill" : "magnifyingglass")
-                        .frame(minWidth: 44, minHeight: 44)
+                    .accessibilityLabel(
+                        pendingJoinBadgeCount > 0
+                            ? "Tùy chọn cuộc trò chuyện, có \(pendingJoinBadgeCount) yêu cầu tham gia chờ duyệt"
+                            : "Tùy chọn cuộc trò chuyện"
+                    )
                 }
-                .accessibilityLabel("Tìm trong cuộc trò chuyện")
-
-                Button {
-                    showInfoSheet = true
-                } label: {
-                    ZStack(alignment: .topTrailing) {
-                        Image(systemName: "info.circle")
-                        if pendingJoinBadgeCount > 0 {
-                            Circle()
-                                .fill(Color(.systemOrange))
-                                .frame(width: 8, height: 8)
-                                .offset(x: 3, y: -2)
-                        }
-                    }
-                    .frame(minWidth: 44, minHeight: 44)
-                }
-                .accessibilityLabel(
-                    pendingJoinBadgeCount > 0
-                        ? "Thông tin cuộc trò chuyện, có \(pendingJoinBadgeCount) yêu cầu tham gia chờ duyệt"
-                        : "Thông tin cuộc trò chuyện"
-                )
             }
         }
-        .confirmationDialog(
+        .alert(
             pendingDeleteMessageIds.count == 1
-                ? "Chọn cách xóa dòng tin nhắn này"
-                : "Chọn cách xóa \(pendingDeleteMessageIds.count) tin nhắn đã chọn",
-            isPresented: $showDeleteMessageDialog,
-            titleVisibility: .visible
+                ? "Xóa tin nhắn này?"
+                : "Xóa \(pendingDeleteMessageIds.count) tin nhắn đã chọn?",
+            isPresented: $showDeleteMessageDialog
         ) {
             if canDeletePendingForEveryone {
-                Button("Thu hồi / Xóa với mọi người", role: .destructive) {
+                Button("Thu hồi với mọi người", role: .destructive) {
                     Task {
                         await executeDeleteMessages(mode: "FOR_EVERYONE")
                     }
@@ -219,7 +241,7 @@ struct ChatRoomView: View {
                     await executeDeleteMessages(mode: "FOR_ME")
                 }
             }
-            Button("Huỷ", role: .cancel) {
+            Button("Hủy", role: .cancel) {
                 pendingDeleteMessageIds = []
             }
         } message: {
@@ -327,6 +349,7 @@ struct ChatRoomView: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
+                        .truncationMode(.tail)
 
                     HStack(spacing: 4) {
                         Image(
@@ -337,11 +360,12 @@ struct ChatRoomView: View {
                                     presenceStatus: conversation.presenceStatus
                                 )
                         )
-                        .font(.caption2)
+                        .font(.system(size: 10, weight: .medium))
 
                         Text(subtitleStatusText)
                             .font(.caption2)
                             .lineLimit(1)
+                            .truncationMode(.tail)
                     }
                     .foregroundStyle(
                         conversation.isGroup
@@ -352,8 +376,11 @@ struct ChatRoomView: View {
                             )
                     )
                 }
+                .layoutPriority(1)
             }
-            .frame(minHeight: 44)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: 40)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)

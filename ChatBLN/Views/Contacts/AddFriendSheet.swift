@@ -205,8 +205,16 @@ struct AddFriendSheet: View {
                     if isBusy {
                         ProgressView()
                             .controlSize(.small)
+                            .tint(.white)
                     } else {
-                        Label("Kết bạn", systemImage: "plus")
+                        HStack(spacing: 4) {
+                            Image(systemName: "plus")
+                                .font(.caption.weight(.bold))
+                            Text("Kết bạn")
+                                .font(.footnote.weight(.semibold))
+                                .lineLimit(1)
+                        }
+                        .foregroundStyle(.white)
                     }
                 }
                 .buttonStyle(.borderedProminent)

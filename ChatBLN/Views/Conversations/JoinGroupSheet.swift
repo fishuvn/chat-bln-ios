@@ -177,21 +177,28 @@ struct JoinGroupSheet: View {
                     await openJoinedConversation(conversationId: item.conversationId)
                 }
             } label: {
-                Label("Mở nhóm trò chuyện", systemImage: "bubble.left.and.bubble.right")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, minHeight: 44)
+                HStack(spacing: 8) {
+                    Image(systemName: "bubble.left.and.bubble.right")
+                    Text("Mở nhóm trò chuyện")
+                        .font(.headline)
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, minHeight: 44)
             }
             .buttonStyle(.borderedProminent)
             .tint(.chatBLNPrimary)
         } else if item.isPendingApproval {
-            Label("Đã gửi yêu cầu · Đang chờ Trưởng / Phó nhóm duyệt", systemImage: "clock.badge.checkmark")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(Color(.systemOrange))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity)
-                .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            HStack(spacing: 6) {
+                Image(systemName: "clock.badge.checkmark")
+                Text("Đã gửi yêu cầu · Đang chờ Trưởng / Phó nhóm duyệt")
+                    .font(.footnote.weight(.semibold))
+                    .multilineTextAlignment(.center)
+            }
+            .foregroundStyle(Color(.systemOrange))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity)
+            .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         } else {
             let isPublic = item.resolvedVisibility == .publicGroup
             Button {
