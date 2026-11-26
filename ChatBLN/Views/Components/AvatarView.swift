@@ -65,6 +65,7 @@ struct AvatarView: View {
     var isOnline: Bool? = nil
     var presenceStatus: String? = nil
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var loadedImage: UIImage?
 
     private var resolvedMode: UserPresenceMode {
@@ -114,18 +115,71 @@ struct AvatarView: View {
     }
 
     private var monogramSurface: some View {
-        ZStack {
-            Color(.tertiarySystemFill)
+        let isDark = colorScheme == .dark
+        let bgColor: Color = isDark
+            ? Color(red: 23.0 / 255.0, green: 37.0 / 255.0, blue: 84.0 / 255.0)
+            : (isGroup
+                ? Color(red: 219.0 / 255.0, green: 234.0 / 255.0, blue: 254.0 / 255.0)
+                : Color(red: 230.0 / 255.0, green: 239.0 / 255.0, blue: 252.0 / 255.0))
+        let primaryColor: Color = isDark
+            ? Color(red: 248.0 / 255.0, green: 250.0 / 255.0, blue: 252.0 / 255.0)
+            : Color(red: 15.0 / 255.0, green: 82.0 / 255.0, blue: 186.0 / 255.0)
+        let accentColor: Color = isDark
+            ? Color(red: 96.0 / 255.0, green: 165.0 / 255.0, blue: 250.0 / 255.0)
+            : Color(red: 59.0 / 255.0, green: 130.0 / 255.0, blue: 246.0 / 255.0)
+
+        return Canvas { ctx, canvasSize in
+            let s = min(canvasSize.width, canvasSize.height) / 128.0
+            let ox = (canvasSize.width - 128.0 * s) * 0.5
+            let oy = (canvasSize.height - 128.0 * s) * 0.5
+            func px(_ x: CGFloat) -> CGFloat { ox + x * s }
+            func py(_ y: CGFloat) -> CGFloat { oy + y * s }
+            func rrect(
+                _ x0: CGFloat, _ y0: CGFloat, _ x1: CGFloat, _ y1: CGFloat,
+                _ rtl: CGFloat, _ rtr: CGFloat, _ rbr: CGFloat, _ rbl: CGFloat
+            ) -> Path {
+                let l = px(x0), t = py(y0), r = px(x1), b = py(y1)
+                let tl = rtl * s, tr = rtr * s, br = rbr * s, bl = rbl * s
+                var p = Path()
+                p.move(to: CGPoint(x: l + tl, y: t))
+                p.addLine(to: CGPoint(x: r - tr, y: t))
+                p.addArc(center: CGPoint(x: r - tr, y: t + tr), radius: tr, startAngle: .degrees(-90), endAngle: .degrees(0), clockwise: false)
+                p.addLine(to: CGPoint(x: r, y: b - br))
+                p.addArc(center: CGPoint(x: r - br, y: b - br), radius: br, startAngle: .degrees(0), endAngle: .degrees(90), clockwise: false)
+                p.addLine(to: CGPoint(x: l + bl, y: b))
+                p.addArc(center: CGPoint(x: l + bl, y: b - bl), radius: bl, startAngle: .degrees(90), endAngle: .degrees(180), clockwise: false)
+                p.addLine(to: CGPoint(x: l, y: t + tl))
+                p.addArc(center: CGPoint(x: l + tl, y: t + tl), radius: tl, startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
+                p.closeSubpath()
+                return p
+            }
+
+            ctx.fill(Path(CGRect(origin: .zero, size: canvasSize)), with: .color(bgColor))
+
             if isGroup {
-                Image(systemName: "person.2.fill")
-                    .font(monogramFont)
-                    .foregroundStyle(Color.chatBLNPrimary)
+                // Back-right secondary member with concentric 5px negative-space moat
+                let backHead = Path(ellipseIn: CGRect(x: px(84 - 12), y: py(49 - 12), width: 24 * s, height: 24 * s))
+                ctx.fill(backHead, with: .color(accentColor))
+
+                var backTorso = Path()
+                backTorso.move(to: CGPoint(x: px(71.52), y: py(70)))
+                backTorso.addLine(to: CGPoint(x: px(90), y: py(70)))
+                backTorso.addArc(center: CGPoint(x: px(90), y: py(87)), radius: 17 * s, startAngle: .degrees(-90), endAngle: .degrees(0), clockwise: false)
+                backTorso.addArc(center: CGPoint(x: px(98), y: py(87)), radius: 9 * s, startAngle: .degrees(0), endAngle: .degrees(90), clockwise: false)
+                backTorso.addLine(to: CGPoint(x: px(75.71), y: py(96)))
+                backTorso.addArc(center: CGPoint(x: px(55), y: py(86)), radius: 23 * s, startAngle: .degrees(25.77), endAngle: .degrees(-44.08), clockwise: true)
+                backTorso.closeSubpath()
+                ctx.fill(backTorso, with: .color(accentColor))
+
+                // Front-left primary member
+                let frontHead = Path(ellipseIn: CGRect(x: px(47 - 15), y: py(45 - 15), width: 30 * s, height: 30 * s))
+                ctx.fill(frontHead, with: .color(primaryColor))
+                ctx.fill(rrect(21, 68, 73, 96, 18, 18, 10, 10), with: .color(primaryColor))
             } else {
-                Text(initials)
-                    .font(monogramFont)
-                    .foregroundStyle(Color(.label))
-                    .minimumScaleFactor(0.6)
-                    .lineLimit(1)
+                // Default B-Dialogue geometric user silhouette
+                let head = Path(ellipseIn: CGRect(x: px(64 - 17), y: py(45 - 17), width: 34 * s, height: 34 * s))
+                ctx.fill(rrect(29, 72, 99, 102, 20, 20, 10, 10), with: .color(accentColor))
+                ctx.fill(head, with: .color(primaryColor))
             }
         }
     }
