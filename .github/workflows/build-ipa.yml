@@ -89,6 +89,7 @@ jobs:
           IPHONEOS_DEPLOYMENT_TARGET: "18.0"
         run: |
           set -euo pipefail
+          export DYLD_FALLBACK_LIBRARY_PATH="$(rustc --print sysroot)/lib:${DYLD_FALLBACK_LIBRARY_PATH:-}"
           mkdir -p dist-dx dist-ipa
 
           dx bundle --ios --release --target aarch64-apple-ios --package-types ipa --codesign false --out-dir dist-dx || \
