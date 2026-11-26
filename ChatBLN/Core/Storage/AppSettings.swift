@@ -314,10 +314,10 @@ extension Color {
         }
     )
 
-    static let chatBLNBeacon = Color(red: 56.0 / 255.0, green: 189.0 / 255.0, blue: 248.0 / 255.0)
+    static let chatBLNBeacon = Color(red: 138.0 / 255.0, green: 213.0 / 255.0, blue: 255.0 / 255.0)
 }
 
-/// Unified Chat BLN "Signal Aperture" Brand Mark (matches Web `logo.svg` & Android `QuietSignalBrandMark`).
+/// Unified Chat BLN "Dual Dialogue" Brand Mark (180° point-symmetric, matches Web `logo.svg` & Android).
 struct ChatBLNBrandMark: View {
     var size: CGFloat = 64
 
@@ -327,8 +327,8 @@ struct ChatBLNBrandMark: View {
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color(red: 23.0 / 255.0, green: 88.0 / 255.0, blue: 238.0 / 255.0),
-                            Color(red: 10.0 / 255.0, green: 54.0 / 255.0, blue: 157.0 / 255.0)
+                            Color(red: 29.0 / 255.0, green: 98.0 / 255.0, blue: 248.0 / 255.0),
+                            Color(red: 11.0 / 255.0, green: 59.0 / 255.0, blue: 196.0 / 255.0)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -336,64 +336,86 @@ struct ChatBLNBrandMark: View {
                 )
 
             Canvas { ctx, canvasSize in
-                let w = canvasSize.width
-                let h = canvasSize.height
-                let center = CGPoint(x: w * 0.5, y: h * 0.515)
-                let radius = w * 0.275
-                let strokeW = w * 0.072
+                let s = min(canvasSize.width, canvasSize.height) / 64.0
+                let ox = (canvasSize.width - 64.0 * s) * 0.5
+                let oy = (canvasSize.height - 64.0 * s) * 0.5
+                func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+                    CGPoint(x: ox + x * s, y: oy + y * s)
+                }
 
-                // Open chat aperture arc with bottom-left speech tail
-                var arcPath = Path()
-                arcPath.addArc(
-                    center: center,
-                    radius: radius,
-                    startAngle: .degrees(-12),
-                    endAngle: .degrees(118),
+                // Back reply bubble (top-right, negative-space moat carved along front bubble)
+                var backPath = Path()
+                backPath.move(to: pt(22.0, 24.5))
+                backPath.addArc(
+                    center: pt(32.5, 24.5),
+                    radius: 10.5 * s,
+                    startAngle: .degrees(180),
+                    endAngle: .degrees(270),
                     clockwise: false
                 )
-                let tip = CGPoint(x: w * 0.23, y: h * 0.77)
-                arcPath.addLine(to: tip)
-                let tailUpper = CGPoint(
-                    x: center.x + radius * cos(148 * .pi / 180),
-                    y: center.y + radius * sin(148 * .pi / 180)
-                )
-                arcPath.addLine(to: tailUpper)
-                arcPath.addArc(
-                    center: center,
-                    radius: radius,
-                    startAngle: .degrees(148),
-                    endAngle: .degrees(296),
+                backPath.addLine(to: pt(47.8, 14.0))
+                backPath.addArc(
+                    center: pt(47.8, 17.2),
+                    radius: 3.2 * s,
+                    startAngle: .degrees(270),
+                    endAngle: .degrees(360),
                     clockwise: false
                 )
+                backPath.addLine(to: pt(51.0, 26.5))
+                backPath.addArc(
+                    center: pt(40.5, 26.5),
+                    radius: 10.5 * s,
+                    startAngle: .degrees(0),
+                    endAngle: .degrees(67.97),
+                    clockwise: false
+                )
+                backPath.addArc(
+                    center: pt(31.5, 37.5),
+                    radius: 13.0 * s,
+                    startAngle: .degrees(-5.59),
+                    endAngle: .degrees(-90),
+                    clockwise: true
+                )
+                backPath.closeSubpath()
+                ctx.fill(backPath, with: .color(.chatBLNBeacon))
 
-                ctx.stroke(
-                    arcPath,
-                    with: .color(.white),
-                    style: StrokeStyle(lineWidth: strokeW, lineCap: .round, lineJoin: .round)
+                // Front primary bubble (bottom-left, exact 180° mirror around (32, 32))
+                var frontPath = Path()
+                frontPath.move(to: pt(23.5, 27.0))
+                frontPath.addLine(to: pt(31.5, 27.0))
+                frontPath.addArc(
+                    center: pt(31.5, 37.5),
+                    radius: 10.5 * s,
+                    startAngle: .degrees(-90),
+                    endAngle: .degrees(0),
+                    clockwise: false
                 )
-
-                // Ascending precision signal bars
-                let barW = w * 0.074
-                let bar1 = Path(
-                    roundedRect: CGRect(x: w * 0.375, y: h * 0.46, width: barW, height: h * 0.145),
-                    cornerRadius: barW * 0.5
+                frontPath.addLine(to: pt(42.0, 39.5))
+                frontPath.addArc(
+                    center: pt(31.5, 39.5),
+                    radius: 10.5 * s,
+                    startAngle: .degrees(0),
+                    endAngle: .degrees(90),
+                    clockwise: false
                 )
-                let bar2 = Path(
-                    roundedRect: CGRect(x: w * 0.495, y: h * 0.385, width: barW, height: h * 0.22),
-                    cornerRadius: barW * 0.5
+                frontPath.addLine(to: pt(16.2, 50.0))
+                frontPath.addArc(
+                    center: pt(16.2, 46.8),
+                    radius: 3.2 * s,
+                    startAngle: .degrees(90),
+                    endAngle: .degrees(180),
+                    clockwise: false
                 )
-                ctx.fill(bar1, with: .color(.white))
-                ctx.fill(bar2, with: .color(.white))
-
-                // Sky-cyan live realtime beacon dot
-                let dotR = w * 0.065
-                let dotRect = CGRect(
-                    x: w * 0.695 - dotR,
-                    y: h * 0.315 - dotR,
-                    width: dotR * 2,
-                    height: dotR * 2
+                frontPath.addLine(to: pt(13.0, 37.5))
+                frontPath.addArc(
+                    center: pt(23.5, 37.5),
+                    radius: 10.5 * s,
+                    startAngle: .degrees(180),
+                    endAngle: .degrees(270),
+                    clockwise: false
                 )
-                ctx.fill(Path(ellipseIn: dotRect), with: .color(.chatBLNBeacon))
+                frontPath.closeSubpath()
+                ctx.fill(frontPath, with: .color(.white))
             }
         }
         .frame(width: size, height: size)
