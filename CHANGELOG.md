@@ -2,6 +2,17 @@
 
 Quy ước phiên bản: `1.0.x` / `1.x.x` cho các bản cập nhật và sửa lỗi nhỏ (mỗi bậc tối đa `10`, ví dụ `1.0.10` → `1.1.0`); `x.0.0` dành cho thay đổi lớn về kiến trúc, ngôn ngữ lập trình, nâng phiên bản HĐH tối thiểu hoặc đại tu UI/UX.
 
+## v4.0.0 — Chat BLN iOS (2026-11-26 23:19 UTC+7)
+
+- **Phiên bản**: `v4.0.0` (Build `40000`)
+- **Phân loại**: Cập nhật lớn (`x.0.0` — Kiến trúc / Ngôn ngữ / HĐH / Đại tu UI-UX)
+
+### 🚀 Thay đổi lớn (Cấu trúc / HĐH / UI-UX)
+- arch!: revert iOS app to native Swift 6 + SwiftUI 18+ with GitHub Releases update checker (`9beab72`)
+
+### 🐛 Sửa lỗi
+- fix(ios): simplify currentAppVersion optional unwrap in AppUpdateChecker (`5261645`)
+
 ## v3.0.0 — Chat BLN iOS (Rust) (2026-11-26 22:56 UTC+7)
 
 - **Phiên bản**: `v3.0.0` (Build `30000`)
