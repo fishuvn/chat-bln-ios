@@ -257,31 +257,6 @@ def update_project_version_files(version_str: str, build_number: int) -> List[st
     Path("VERSION").write_text(f"{version_str}\n", encoding="utf-8")
     touched.append("VERSION")
 
-    # 1b. Rust Cargo.toml & Dioxus.toml
-    cargo_toml = Path("Cargo.toml")
-    if cargo_toml.exists():
-        txt = cargo_toml.read_text(encoding="utf-8")
-        txt_new = re.sub(
-            r'(?m)^(version\s*=\s*")[^"]+(")',
-            rf"\g<1>{version_str}\g<2>",
-            txt,
-            count=1,
-        )
-        cargo_toml.write_text(txt_new, encoding="utf-8")
-        touched.append("Cargo.toml")
-
-    dioxus_toml = Path("Dioxus.toml")
-    if dioxus_toml.exists():
-        txt = dioxus_toml.read_text(encoding="utf-8")
-        txt_new = re.sub(
-            r'(?m)^(version\s*=\s*")[^"]+(")',
-            rf"\g<1>{version_str}\g<2>",
-            txt,
-            count=1,
-        )
-        dioxus_toml.write_text(txt_new, encoding="utf-8")
-        touched.append("Dioxus.toml")
-
     # 2. Android app/build.gradle.kts
     gradle_file = Path("app/build.gradle.kts")
     if gradle_file.exists():

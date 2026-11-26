@@ -1,4 +1,4 @@
-name: Build Rust iOS 18+ IPA & Auto-Release
+name: Build iOS 18+ IPA & Auto-Release
 
 on:
   push:
@@ -18,7 +18,7 @@ on:
           - minor
           - major
       explicit_version:
-        description: 'Ghi đè phiên bản cụ thể (ví dụ 3.0.0, để trống nếu tự động)'
+        description: 'Ghi đè phiên bản cụ thể (ví dụ 2.0.0, để trống nếu tự động)'
         required: false
         default: ''
         type: string
@@ -28,12 +28,12 @@ permissions:
 
 jobs:
   build-ipa:
-    name: Build Rust ChatBLN-iOS18.ipa & Publish Release
+    name: Build ChatBLN-iOS18.ipa & Publish Release
     if: >-
       github.event_name != 'push' ||
       (!contains(github.event.head_commit.message, '[skip ci]') && github.actor != 'github-actions[bot]')
     runs-on: macos-15
-    timeout-minutes: 40
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository (full history & tags)
@@ -46,7 +46,7 @@ jobs:
         id: ver
         run: |
           python3 .github/scripts/compute-release.py \
-            --platform "Chat BLN iOS (Rust)" \
+            --platform "Chat BLN iOS" \
             --bump "${{ inputs.bump_type || 'auto' }}" \
             --explicit-version "${{ inputs.explicit_version || '' }}" \
             --release-notes-out "$RUNNER_TEMP/RELEASE_NOTES.md" \
@@ -60,52 +60,86 @@ jobs:
             sudo xcode-select -s "$LATEST_XCODE/Contents/Developer"
           fi
           xcodebuild -version
+          xcodebuild -showsdks
 
-      - name: Set up Rust Toolchain (aarch64-apple-ios)
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-ios
-
-      - name: Run Rust Unit Tests (API, STOMP 1.2 & Update Checker)
-        run: cargo test --lib --no-default-features
-
-      - name: Install Dioxus CLI v0.7.10 (dx)
-        run: |
-          mkdir -p "$HOME/.local/bin"
-          ARCH=$(uname -m)
-          if [ "$ARCH" = "arm64" ]; then
-            DX_TAR="dx-aarch64-apple-darwin.tar.gz"
-          else
-            DX_TAR="dx-x86_64-apple-darwin.tar.gz"
-          fi
-          curl -sSL "https://github.com/DioxusLabs/dioxus/releases/download/v0.7.10/${DX_TAR}" | tar -xz -C "$HOME/.local/bin"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          "$HOME/.local/bin/dx" --version
-
-      - name: Build & Package Rust iOS 18+ IPA
+      - name: Build & Package IPA for iOS 18+
         env:
+          IOS_CERT_BASE64: ${{ secrets.IOS_CERT_BASE64 }}
+          IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
+          IOS_PROVISION_BASE64: ${{ secrets.IOS_PROVISION_BASE64 }}
+          EXPORT_OPTIONS_PLIST_BASE64: ${{ secrets.EXPORT_OPTIONS_PLIST_BASE64 }}
           APP_VERSION: ${{ steps.ver.outputs.version }}
           APP_BUILD_NUMBER: ${{ steps.ver.outputs.build_number }}
-          IPHONEOS_DEPLOYMENT_TARGET: "18.0"
         run: |
           set -euo pipefail
-          export DYLD_FALLBACK_LIBRARY_PATH="$(rustc --print sysroot)/lib:${DYLD_FALLBACK_LIBRARY_PATH:-}"
-          mkdir -p dist-dx dist-ipa
+          mkdir -p dist-ipa build
 
-          dx bundle --ios --release --target aarch64-apple-ios --package-types ipa --codesign false --out-dir dist-dx || \
-          dx bundle --ios --release --target aarch64-apple-ios --package-types ios --codesign false --out-dir dist-dx
+          if [ -n "$IOS_CERT_BASE64" ] && [ -n "$IOS_PROVISION_BASE64" ] && [ -n "$EXPORT_OPTIONS_PLIST_BASE64" ]; then
+            echo "Building Apple-signed IPA v${APP_VERSION} (${APP_BUILD_NUMBER}) from configured secrets..."
+            KEYCHAIN_PATH="$RUNNER_TEMP/chatbln-signing.keychain-db"
+            KEYCHAIN_PASS="chatbln_temp_kc_pass"
+            CERT_PATH="$RUNNER_TEMP/cert.p12"
+            PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+            EXPORT_PLIST="$RUNNER_TEMP/ExportOptions.plist"
 
-          IPA_FOUND=$(find dist-dx target -name "*.ipa" -type f | head -n 1 || true)
-          if [ -n "$IPA_FOUND" ]; then
+            echo "$IOS_CERT_BASE64" | base64 --decode > "$CERT_PATH"
+            echo "$EXPORT_OPTIONS_PLIST_BASE64" | base64 --decode > "$EXPORT_PLIST"
+            mkdir -p "$PROFILE_DIR"
+            PROFILE_TMP="$RUNNER_TEMP/profile.mobileprovision"
+            echo "$IOS_PROVISION_BASE64" | base64 --decode > "$PROFILE_TMP"
+            UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< "$(security cms -D -i "$PROFILE_TMP")")
+            cp "$PROFILE_TMP" "$PROFILE_DIR/$UUID.mobileprovision"
+
+            security create-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN_PATH"
+            security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+            security unlock-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN_PATH"
+            security import "$CERT_PATH" -P "$IOS_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+            security list-keychain -d user -s "$KEYCHAIN_PATH"
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASS" "$KEYCHAIN_PATH"
+
+            xcodebuild clean archive \
+              -project ChatBLN.xcodeproj \
+              -scheme ChatBLN \
+              -configuration Release \
+              -sdk iphoneos \
+              -archivePath build/ChatBLN.xcarchive \
+              IPHONEOS_DEPLOYMENT_TARGET=18.0 \
+              MARKETING_VERSION="${APP_VERSION}" \
+              CURRENT_PROJECT_VERSION="${APP_BUILD_NUMBER}" \
+              ARCHS=arm64
+
+            xcodebuild -exportArchive \
+              -archivePath build/ChatBLN.xcarchive \
+              -exportOptionsPlist "$EXPORT_PLIST" \
+              -exportPath build/export
+
+            IPA_FOUND=$(ls build/export/*.ipa | head -n 1)
             cp "$IPA_FOUND" dist-ipa/ChatBLN-iOS18.ipa
           else
-            APP_FOUND=$(find dist-dx target -name "*.app" -type d | head -n 1 || true)
-            if [ -z "$APP_FOUND" ]; then
-              echo "ERROR: Neither .ipa nor .app bundle found after dx bundle"
+            echo "Building Release iOS 18+ arm64 IPA v${APP_VERSION} (${APP_BUILD_NUMBER})..."
+            xcodebuild clean build \
+              -project ChatBLN.xcodeproj \
+              -scheme ChatBLN \
+              -configuration Release \
+              -sdk iphoneos \
+              -derivedDataPath build/DerivedData \
+              IPHONEOS_DEPLOYMENT_TARGET=18.0 \
+              MARKETING_VERSION="${APP_VERSION}" \
+              CURRENT_PROJECT_VERSION="${APP_BUILD_NUMBER}" \
+              ARCHS=arm64 \
+              ONLY_ACTIVE_ARCH=NO \
+              CODE_SIGN_IDENTITY="" \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO
+
+            APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/ChatBLN.app"
+            if [ ! -d "$APP_PATH" ]; then
+              echo "ERROR: ChatBLN.app was not produced at $APP_PATH"
               exit 1
             fi
+
             mkdir -p build/ipa/Payload
-            cp -R "$APP_FOUND" build/ipa/Payload/ChatBLN.app
+            cp -R "$APP_PATH" build/ipa/Payload/ChatBLN.app
             (cd build/ipa && zip -qry ../../dist-ipa/ChatBLN-iOS18.ipa Payload)
           fi
 
@@ -120,7 +154,7 @@ jobs:
           {
             cat "$RUNNER_TEMP/RELEASE_NOTES.md"
             echo ""
-            echo "### 📦 Gói cài đặt iOS 100% Rust (\`v${APP_VERSION}\` — Build \`${APP_BUILD_NUMBER}\`)"
+            echo "### 📦 Gói cài đặt iOS (\`v${APP_VERSION}\` — Build \`${APP_BUILD_NUMBER}\`)"
             echo "| File IPA | Hệ điều hành đích | Kiến trúc | Dung lượng |"
             echo "| :--- | :--- | :--- | :--- |"
             echo "| \`ChatBLN-iOS18.ipa\` | iOS 18.0+ | \`arm64\` | $(du -h dist-ipa/ChatBLN-iOS18.ipa | cut -f1) |"
@@ -133,10 +167,10 @@ jobs:
 
           cat dist-ipa/FULL_RELEASE_BODY.md >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload Rust IPA (iOS 18+)
+      - name: Upload IPA (iOS 18+)
         uses: actions/upload-artifact@v4
         with:
-          name: ChatBLN-iOS18-Rust-IPA-v${{ steps.ver.outputs.version }}
+          name: ChatBLN-iOS18-IPA-v${{ steps.ver.outputs.version }}
           path: |
             dist-ipa/ChatBLN-iOS18.ipa
             dist-ipa/CHANGELOG.md
@@ -150,11 +184,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add VERSION CHANGELOG.md Cargo.toml Dioxus.toml
+          git add VERSION CHANGELOG.md ChatBLN.xcodeproj/project.pbxproj
           if ! git diff --cached --quiet; then
             git commit -m "chore(release): ${TAG} [skip ci]"
             git pull --rebase origin main || true
-            git push origin HEAD:main || echo "Notice: skipped pushing release commit to main."
+            git push origin HEAD:main || echo "Notice: skipped pushing release commit to main, tagging HEAD directly."
           fi
 
           git tag -fa "$TAG" -m "Release ${TAG}"
