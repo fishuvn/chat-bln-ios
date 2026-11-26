@@ -90,32 +90,30 @@ struct ContactsView: View {
                     .accessibilityLabel("Tìm và thêm bạn bè")
                 }
             }
-            .confirmationDialog(
-                friendPendingUnfriend.map {
-                    "Hủy kết bạn với \"\($0.displayName)\"? Hai bạn sẽ trở về trạng thái chưa kết bạn và có thể kết bạn lại bất cứ lúc nào."
-                } ?? "Hủy kết bạn?",
+            .alert(
+                "Hủy kết bạn?",
                 isPresented: Binding(
                     get: { friendPendingUnfriend != nil },
                     set: { if !$0 { friendPendingUnfriend = nil } }
                 ),
-                titleVisibility: .visible
-            ) {
-                if let target = friendPendingUnfriend {
-                    Button("Hủy kết bạn", role: .destructive) {
-                        friendPendingUnfriend = nil
-                        Task {
-                            do {
-                                unfriendError = nil
-                                try await chatStore.unfriend(userId: target.id)
-                            } catch {
-                                unfriendError = error.localizedDescription
-                            }
+                presenting: friendPendingUnfriend
+            ) { target in
+                Button("Huỷ", role: .cancel) {
+                    friendPendingUnfriend = nil
+                }
+                Button("Hủy kết bạn", role: .destructive) {
+                    friendPendingUnfriend = nil
+                    Task {
+                        do {
+                            unfriendError = nil
+                            try await chatStore.unfriend(userId: target.id)
+                        } catch {
+                            unfriendError = error.localizedDescription
                         }
                     }
                 }
-                Button("Đóng", role: .cancel) {
-                    friendPendingUnfriend = nil
-                }
+            } message: { target in
+                Text("Hủy kết bạn với \"\(target.displayName)\"? Hai bạn sẽ trở về trạng thái chưa kết bạn và có thể kết bạn lại bất cứ lúc nào.")
             }
             .sheet(isPresented: $showAddFriendSheet) {
                 AddFriendSheet(

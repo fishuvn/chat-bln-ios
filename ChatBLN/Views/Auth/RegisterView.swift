@@ -151,14 +151,24 @@ struct RegisterView: View {
                         Spacer()
                         if authViewModel.isSubmitting {
                             ProgressView()
+                                .tint(.white)
                         }
                         Text(authViewModel.isSubmitting ? "Đang tạo tài khoản..." : "Đăng ký & Đăng nhập")
                             .font(.headline)
+                            .foregroundStyle(.white)
                         Spacer()
                     }
-                    .frame(minHeight: 44)
+                    .frame(minHeight: 50)
+                    .background(
+                        Color.chatBLNPrimary,
+                        in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    )
                 }
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
                 .disabled(authViewModel.isSubmitting)
+                .opacity(authViewModel.isSubmitting ? 0.72 : 1.0)
             }
         }
         .navigationTitle("Tạo tài khoản")

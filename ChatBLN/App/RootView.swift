@@ -41,16 +41,7 @@ struct RootView: View {
             Group {
                 if authViewModel.isRestoringSession {
                     VStack(spacing: 14) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(Color.chatBLNPrimary)
-                                .frame(width: 52, height: 52)
-
-                            Image(systemName: "bubble.left.fill")
-                                .font(.title2.weight(.semibold))
-                                .foregroundStyle(.white)
-                        }
-                        .accessibilityHidden(true)
+                        ChatBLNBrandMark(size: 60)
 
                         ProgressView("Đang khôi phục phiên đăng nhập...")
                             .font(.subheadline)

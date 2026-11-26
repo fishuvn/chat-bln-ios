@@ -101,14 +101,23 @@ struct ProfileView: View {
                             Spacer()
                             if isSavingProfile {
                                 ProgressView()
+                                    .tint(.white)
                             }
                             Text(isSavingProfile ? "Đang lưu..." : "Lưu thay đổi hồ sơ")
                                 .font(.body.weight(.semibold))
+                                .foregroundStyle(.white)
                             Spacer()
                         }
-                        .frame(minHeight: 44)
+                        .frame(minHeight: 46)
+                        .background(
+                            Color.chatBLNPrimary,
+                            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        )
                     }
+                    .buttonStyle(.plain)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
                     .disabled(isSavingProfile)
+                    .opacity(isSavingProfile ? 0.72 : 1.0)
                 }
 
                 Section("Trạng thái & Giao diện") {
@@ -139,20 +148,33 @@ struct ProfileView: View {
                     Button {
                         showServerConfigSheet = true
                     } label: {
-                        HStack {
-                            Label("Máy chủ Backend", systemImage: "server.rack")
+                        HStack(spacing: 10) {
+                            Image(systemName: "server.rack")
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(Color.chatBLNPrimary)
+                                .frame(width: 22)
+
+                            Text("Máy chủ Backend")
                                 .foregroundStyle(.primary)
-                            Spacer()
-                            Text(settings.normalizedBaseURL)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+
+                            Spacer(minLength: 8)
+
+                            Text(settings.normalizedBaseURL.replacingOccurrences(of: "https://", with: ""))
                                 .font(.caption.monospaced())
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
+                                .truncationMode(.middle)
+
                             Image(systemName: "chevron.right")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.tertiary)
                         }
                         .frame(minHeight: 36)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                 }
 
                 Section("Ứng dụng & Cập nhật") {
@@ -181,10 +203,18 @@ struct ProfileView: View {
                             await updateChecker.checkForUpdates(openSheetIfDone: true)
                         }
                     } label: {
-                        HStack(spacing: 8) {
-                            Label("Kiểm tra cập nhật", systemImage: "arrow.triangle.2.circlepath")
+                        HStack(spacing: 10) {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(Color.chatBLNPrimary)
+                                .frame(width: 22)
+
+                            Text("Kiểm tra cập nhật")
                                 .foregroundStyle(.primary)
+                                .lineLimit(1)
+
                             Spacer()
+
                             if updateChecker.isChecking {
                                 ProgressView()
                             } else {
@@ -194,22 +224,30 @@ struct ProfileView: View {
                             }
                         }
                         .frame(minHeight: 36)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                     .disabled(updateChecker.isChecking)
                 }
 
                 Section {
-                    Button(role: .destructive) {
+                    Button {
                         showSignOutConfirmation = true
                     } label: {
-                        HStack {
+                        HStack(spacing: 8) {
                             Spacer()
-                            Label("Đăng xuất tài khoản", systemImage: "rectangle.portrait.and.arrow.right")
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
                                 .font(.body.weight(.semibold))
+                                .foregroundStyle(Color(.systemRed))
+                            Text("Đăng xuất tài khoản")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(Color(.systemRed))
                             Spacer()
                         }
                         .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                 }
             }
             .navigationTitle("Hồ sơ")
@@ -245,17 +283,18 @@ struct ProfileView: View {
                     }
                 )
             }
-            .confirmationDialog(
-                "Bạn có chắc chắn muốn đăng xuất khỏi Chat BLN?",
-                isPresented: $showSignOutConfirmation,
-                titleVisibility: .visible
+            .alert(
+                "Đăng xuất khỏi Chat BLN?",
+                isPresented: $showSignOutConfirmation
             ) {
+                Button("Huỷ", role: .cancel) {}
                 Button("Đăng xuất", role: .destructive) {
                     Task {
                         await authViewModel.signOut(chatStore: chatStore)
                     }
                 }
-                Button("Huỷ", role: .cancel) {}
+            } message: {
+                Text("Bạn sẽ cần đăng nhập lại để tiếp tục nhận tin nhắn thời gian thực.")
             }
         }
     }

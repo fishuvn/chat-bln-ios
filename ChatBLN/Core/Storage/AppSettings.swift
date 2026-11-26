@@ -313,6 +313,92 @@ extension Color {
             }
         }
     )
+
+    static let chatBLNBeacon = Color(red: 56.0 / 255.0, green: 189.0 / 255.0, blue: 248.0 / 255.0)
+}
+
+/// Unified Chat BLN "Signal Aperture" Brand Mark (matches Web `logo.svg` & Android `QuietSignalBrandMark`).
+struct ChatBLNBrandMark: View {
+    var size: CGFloat = 64
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.25, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 23.0 / 255.0, green: 88.0 / 255.0, blue: 238.0 / 255.0),
+                            Color(red: 10.0 / 255.0, green: 54.0 / 255.0, blue: 157.0 / 255.0)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            Canvas { ctx, canvasSize in
+                let w = canvasSize.width
+                let h = canvasSize.height
+                let center = CGPoint(x: w * 0.5, y: h * 0.515)
+                let radius = w * 0.275
+                let strokeW = w * 0.072
+
+                // Open chat aperture arc with bottom-left speech tail
+                var arcPath = Path()
+                arcPath.addArc(
+                    center: center,
+                    radius: radius,
+                    startAngle: .degrees(-12),
+                    endAngle: .degrees(118),
+                    clockwise: false
+                )
+                let tip = CGPoint(x: w * 0.23, y: h * 0.77)
+                arcPath.addLine(to: tip)
+                let tailUpper = CGPoint(
+                    x: center.x + radius * cos(148 * .pi / 180),
+                    y: center.y + radius * sin(148 * .pi / 180)
+                )
+                arcPath.addLine(to: tailUpper)
+                arcPath.addArc(
+                    center: center,
+                    radius: radius,
+                    startAngle: .degrees(148),
+                    endAngle: .degrees(296),
+                    clockwise: false
+                )
+
+                ctx.stroke(
+                    arcPath,
+                    with: .color(.white),
+                    style: StrokeStyle(lineWidth: strokeW, lineCap: .round, lineJoin: .round)
+                )
+
+                // Ascending precision signal bars
+                let barW = w * 0.074
+                let bar1 = Path(
+                    roundedRect: CGRect(x: w * 0.375, y: h * 0.46, width: barW, height: h * 0.145),
+                    cornerRadius: barW * 0.5
+                )
+                let bar2 = Path(
+                    roundedRect: CGRect(x: w * 0.495, y: h * 0.385, width: barW, height: h * 0.22),
+                    cornerRadius: barW * 0.5
+                )
+                ctx.fill(bar1, with: .color(.white))
+                ctx.fill(bar2, with: .color(.white))
+
+                // Sky-cyan live realtime beacon dot
+                let dotR = w * 0.065
+                let dotRect = CGRect(
+                    x: w * 0.695 - dotR,
+                    y: h * 0.315 - dotR,
+                    width: dotR * 2,
+                    height: dotR * 2
+                )
+                ctx.fill(Path(ellipseIn: dotRect), with: .color(.chatBLNBeacon))
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
 }
 
 // MARK: - GitHub Releases Update Checker (Native Swift 6)

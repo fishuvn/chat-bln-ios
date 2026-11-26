@@ -121,24 +121,25 @@ struct ConversationInfoSheet: View {
                 dangerZoneSection
             }
             .listStyle(.insetGrouped)
-            .confirmationDialog(
-                "Hủy kết bạn với \"\(liveConversation.displayName)\"? Hai bạn sẽ trở về trạng thái chưa kết bạn và có thể kết bạn lại bất cứ lúc nào.",
-                isPresented: $showUnfriendConfirm,
-                titleVisibility: .visible
+            .alert(
+                "Hủy kết bạn?",
+                isPresented: $showUnfriendConfirm
             ) {
+                Button("Huỷ", role: .cancel) {}
                 Button("Hủy kết bạn", role: .destructive) {
                     guard let targetId = liveConversation.targetUserId else { return }
                     Task {
                         await executeUnfriend(targetId: targetId)
                     }
                 }
-                Button("Đóng", role: .cancel) {}
+            } message: {
+                Text("Hủy kết bạn với \"\(liveConversation.displayName)\"? Hai bạn sẽ trở về trạng thái chưa kết bạn và có thể kết bạn lại bất cứ lúc nào.")
             }
-            .confirmationDialog(
+            .alert(
                 dangerConfirmationTitle,
-                isPresented: $showDeleteConfirm,
-                titleVisibility: .visible
+                isPresented: $showDeleteConfirm
             ) {
+                Button("Huỷ", role: .cancel) {}
                 Button(dangerActionButtonTitle, role: .destructive) {
                     guard let onDeleteConversation else { return }
                     isDeleting = true
@@ -153,19 +154,19 @@ struct ConversationInfoSheet: View {
                         isDeleting = false
                     }
                 }
-                Button("Huỷ", role: .cancel) {}
             }
-            .confirmationDialog(
-                "Tạo mã mời nhóm mới? Đường link mời cũ sẽ bị vô hiệu hoá ngay lập tức.",
-                isPresented: $showRegenerateInviteConfirm,
-                titleVisibility: .visible
+            .alert(
+                "Tạo mã mời nhóm mới?",
+                isPresented: $showRegenerateInviteConfirm
             ) {
+                Button("Huỷ", role: .cancel) {}
                 Button("Đổi mã mời mới", role: .destructive) {
                     Task {
                         await executeRegenerateInviteCode()
                     }
                 }
-                Button("Huỷ", role: .cancel) {}
+            } message: {
+                Text("Đường link mời cũ sẽ bị vô hiệu hoá ngay lập tức.")
             }
             .alert(
                 "Chuyển quyền Trưởng nhóm?",

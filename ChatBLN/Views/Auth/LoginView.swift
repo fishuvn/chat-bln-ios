@@ -20,140 +20,244 @@ struct LoginView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
+            ScrollView {
+                VStack(spacing: 22) {
                     brandHeader
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets())
-                }
+                        .padding(.top, 18)
 
-                if let banner = localValidationError ?? authViewModel.errorMessage {
-                    Section {
-                        Label(banner, systemImage: "exclamationmark.circle.fill")
-                            .font(.footnote)
-                            .foregroundStyle(Color(.systemRed))
+                    if let banner = localValidationError ?? authViewModel.errorMessage {
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundStyle(Color(.systemRed))
+                                .padding(.top, 1)
+                            Text(banner)
+                                .font(.footnote)
+                                .foregroundStyle(Color(.systemRed))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(12)
+                        .background(
+                            Color(.systemRed).opacity(0.12),
+                            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(Color(.systemRed).opacity(0.32), lineWidth: 1)
+                        )
                     }
-                }
 
-                Section("Thông tin đăng nhập") {
-                    TextField("Tên đăng nhập hoặc email", text: $username)
-                        .textContentType(.username)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .submitLabel(.next)
-                        .focused($focusedField, equals: .username)
-                        .onChange(of: username) { _, _ in
-                            localValidationError = nil
-                        }
-                        .onSubmit {
-                            focusedField = .password
-                        }
-                        .frame(minHeight: 36)
-
-                    HStack(spacing: 8) {
-                        Group {
-                            if isPasswordVisible {
-                                TextField("Mật khẩu", text: $password)
-                            } else {
-                                SecureField("Mật khẩu", text: $password)
-                            }
-                        }
-                        .textContentType(.password)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .submitLabel(.go)
-                        .focused($focusedField, equals: .password)
-                        .onChange(of: password) { _, _ in
-                            localValidationError = nil
-                        }
-                        .onSubmit {
-                            submitLogin()
-                        }
-
-                        Button {
-                            isPasswordVisible.toggle()
-                        } label: {
-                            Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
+                    VStack(spacing: 14) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Tên đăng nhập hoặc Email")
+                                .font(.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
-                                .frame(width: 44, height: 44)
-                                .contentShape(Rectangle())
+
+                            HStack(spacing: 10) {
+                                Image(systemName: "person")
+                                    .font(.body.weight(.medium))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 20)
+
+                                TextField(
+                                    "",
+                                    text: $username,
+                                    prompt: Text("Nhập tên đăng nhập hoặc email").foregroundStyle(.secondary)
+                                )
+                                .textContentType(.username)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .submitLabel(.next)
+                                .focused($focusedField, equals: .username)
+                                .onChange(of: username) { _, _ in
+                                    localValidationError = nil
+                                }
+                                .onSubmit {
+                                    focusedField = .password
+                                }
+                            }
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 50)
+                            .background(
+                                Color(.secondarySystemGroupedBackground),
+                                in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                    .strokeBorder(
+                                        focusedField == .username ? Color.chatBLNPrimary : Color(.separator).opacity(0.45),
+                                        lineWidth: focusedField == .username ? 1.5 : 1
+                                    )
+                            )
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("Mật khẩu")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Button("Quên mật khẩu?") {
+                                    localValidationError = nil
+                                    authViewModel.errorMessage = nil
+                                    showForgotPassword = true
+                                }
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.chatBLNPrimary)
+                            }
+
+                            HStack(spacing: 10) {
+                                Image(systemName: "lock")
+                                    .font(.body.weight(.medium))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 20)
+
+                                Group {
+                                    if isPasswordVisible {
+                                        TextField(
+                                            "",
+                                            text: $password,
+                                            prompt: Text("Nhập mật khẩu").foregroundStyle(.secondary)
+                                        )
+                                    } else {
+                                        SecureField(
+                                            "",
+                                            text: $password,
+                                            prompt: Text("Nhập mật khẩu").foregroundStyle(.secondary)
+                                        )
+                                    }
+                                }
+                                .textContentType(.password)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .submitLabel(.go)
+                                .focused($focusedField, equals: .password)
+                                .onChange(of: password) { _, _ in
+                                    localValidationError = nil
+                                }
+                                .onSubmit {
+                                    submitLogin()
+                                }
+
+                                Button {
+                                    isPasswordVisible.toggle()
+                                } label: {
+                                    Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
+                                        .font(.body.weight(.medium))
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 36, height: 36)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(isPasswordVisible ? "Ẩn mật khẩu" : "Hiện mật khẩu")
+                            }
+                            .padding(.leading, 14)
+                            .padding(.trailing, 8)
+                            .frame(minHeight: 50)
+                            .background(
+                                Color(.secondarySystemGroupedBackground),
+                                in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                    .strokeBorder(
+                                        focusedField == .password ? Color.chatBLNPrimary : Color(.separator).opacity(0.45),
+                                        lineWidth: focusedField == .password ? 1.5 : 1
+                                    )
+                            )
+                        }
+                    }
+
+                    VStack(spacing: 12) {
+                        Button {
+                            submitLogin()
+                        } label: {
+                            HStack(spacing: 8) {
+                                if authViewModel.isSubmitting {
+                                    ProgressView()
+                                        .tint(.white)
+                                }
+                                Text(authViewModel.isSubmitting ? "Đang đăng nhập..." : "Đăng nhập")
+                                    .font(.headline)
+                                    .foregroundStyle(.white)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                            .background(
+                                Color.chatBLNPrimary,
+                                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            )
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(isPasswordVisible ? "Ẩn mật khẩu" : "Hiện mật khẩu")
-                    }
-                }
+                        .disabled(authViewModel.isSubmitting)
+                        .opacity(authViewModel.isSubmitting ? 0.72 : 1.0)
 
-                Section {
-                    Button {
-                        submitLogin()
-                    } label: {
-                        HStack(spacing: 8) {
-                            Spacer()
-                            if authViewModel.isSubmitting {
-                                ProgressView()
+                        Button {
+                            localValidationError = nil
+                            authViewModel.errorMessage = nil
+                            showRegister = true
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "person.badge.plus")
+                                    .font(.subheadline.weight(.semibold))
+                                Text("Tạo tài khoản mới")
+                                    .font(.subheadline.weight(.semibold))
                             }
-                            Text(authViewModel.isSubmitting ? "Đang đăng nhập..." : "Đăng nhập")
-                                .font(.headline)
-                            Spacer()
+                            .foregroundStyle(.primary)
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .background(
+                                Color(.secondarySystemGroupedBackground),
+                                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .strokeBorder(Color(.separator).opacity(0.5), lineWidth: 1)
+                            )
                         }
-                        .frame(minHeight: 44)
+                        .buttonStyle(.plain)
                     }
-                    .disabled(authViewModel.isSubmitting)
 
                     Button {
-                        localValidationError = nil
-                        authViewModel.errorMessage = nil
-                        showForgotPassword = true
+                        showServerConfig = true
                     } label: {
-                        HStack {
-                            Text("Quên mật khẩu?")
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(Color.chatBLNPrimary)
-                            Spacer()
+                        HStack(spacing: 6) {
+                            Image(systemName: "globe")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(settings.normalizedBaseURL)
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
                             Image(systemName: "chevron.right")
-                                .font(.caption.weight(.semibold))
+                                .font(.caption2.weight(.semibold))
                                 .foregroundStyle(.tertiary)
                         }
-                        .frame(minHeight: 44)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(
+                            Color(.secondarySystemGroupedBackground),
+                            in: Capsule()
+                        )
                     }
+                    .buttonStyle(.plain)
+                    .padding(.top, 4)
+                    .accessibilityLabel("Cấu hình máy chủ Backend: \(settings.normalizedBaseURL)")
                 }
-
-                Section {
-                    Button {
-                        localValidationError = nil
-                        authViewModel.errorMessage = nil
-                        showRegister = true
-                    } label: {
-                        HStack {
-                            Label("Tạo tài khoản mới", systemImage: "person.badge.plus")
-                                .font(.subheadline.weight(.semibold))
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.tertiary)
-                        }
-                        .frame(minHeight: 44)
-                    }
-                } footer: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "network")
-                            .accessibilityHidden(true)
-                        Text("Máy chủ hiện tại: \(settings.normalizedBaseURL)")
-                            .font(.caption.monospaced())
-                    }
-                    .padding(.top, 6)
-                }
+                .padding(.horizontal, 22)
+                .padding(.bottom, 28)
+                .frame(maxWidth: 460)
+                .frame(maxWidth: .infinity)
             }
+            .scrollDismissesKeyboard(.interactively)
+            .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showServerConfig = true
                     } label: {
-                        Label("Máy chủ", systemImage: "server.rack")
-                            .frame(minWidth: 44, minHeight: 44)
+                        Image(systemName: "server.rack")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(Color.chatBLNPrimary)
                     }
                     .accessibilityLabel("Cấu hình máy chủ Backend")
                 }
@@ -177,24 +281,15 @@ struct LoginView: View {
     }
 
     private var brandHeader: some View {
-        VStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color.chatBLNPrimary)
-                    .frame(width: 60, height: 60)
+        VStack(spacing: 14) {
+            ChatBLNBrandMark(size: 68)
 
-                Image(systemName: "bubble.left.fill")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(.white)
-            }
-            .accessibilityHidden(true)
-
-            VStack(spacing: 4) {
+            VStack(spacing: 5) {
                 Text("Chat BLN")
                     .font(.largeTitle.weight(.bold))
                     .foregroundStyle(.primary)
 
-                Text("Nhắn tin thời gian thực tinh gọn, bảo mật trên iOS.")
+                Text("Nhắn tin thời gian thực tinh gọn và bảo mật.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

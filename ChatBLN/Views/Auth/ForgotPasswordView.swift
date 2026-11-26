@@ -129,19 +129,28 @@ struct ForgotPasswordView: View {
             Button {
                 Task { await submitEmailRequest() }
             } label: {
-                HStack {
+                HStack(spacing: 8) {
                     Spacer()
                     if isSubmitting {
                         ProgressView()
-                            .padding(.trailing, 8)
+                            .tint(.white)
                     }
                     Text(isSubmitting ? "Đang gửi yêu cầu..." : "Nhận mã OTP 6 số")
-                        .font(.body.weight(.semibold))
+                        .font(.headline)
+                        .foregroundStyle(.white)
                     Spacer()
                 }
-                .frame(minHeight: 44)
+                .frame(minHeight: 50)
+                .background(
+                    Color.chatBLNPrimary,
+                    in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+                )
             }
+            .buttonStyle(.plain)
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
             .disabled(isSubmitting)
+            .opacity(isSubmitting ? 0.72 : 1.0)
         }
     }
 
@@ -195,26 +204,45 @@ struct ForgotPasswordView: View {
             Button {
                 Task { await submitOtpVerification() }
             } label: {
-                HStack {
+                HStack(spacing: 8) {
                     Spacer()
                     if isSubmitting {
                         ProgressView()
-                            .padding(.trailing, 8)
+                            .tint(.white)
                     }
                     Text(isSubmitting ? "Đang kiểm tra..." : "Xác thực mã OTP")
-                        .font(.body.weight(.semibold))
+                        .font(.headline)
+                        .foregroundStyle(.white)
                     Spacer()
                 }
-                .frame(minHeight: 44)
+                .frame(minHeight: 50)
+                .background(
+                    Color.chatBLNPrimary,
+                    in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+                )
             }
+            .buttonStyle(.plain)
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
             .disabled(isSubmitting)
+            .opacity(isSubmitting ? 0.72 : 1.0)
+        }
 
+        Section {
             Button {
                 Task { await submitEmailRequest(isResend: true) }
             } label: {
-                Label("Gửi lại mã OTP mới", systemImage: "arrow.clockwise")
-                    .frame(minHeight: 44)
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.clockwise")
+                        .foregroundStyle(Color.chatBLNPrimary)
+                    Text("Gửi lại mã OTP mới")
+                        .foregroundStyle(.primary)
+                    Spacer()
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             .disabled(isSubmitting)
         }
     }
@@ -278,19 +306,28 @@ struct ForgotPasswordView: View {
             Button {
                 Task { await submitPasswordReset() }
             } label: {
-                HStack {
+                HStack(spacing: 8) {
                     Spacer()
                     if isSubmitting {
                         ProgressView()
-                            .padding(.trailing, 8)
+                            .tint(.white)
                     }
                     Text(isSubmitting ? "Đang cập nhật..." : "Lưu mật khẩu mới")
-                        .font(.body.weight(.semibold))
+                        .font(.headline)
+                        .foregroundStyle(.white)
                     Spacer()
                 }
-                .frame(minHeight: 44)
+                .frame(minHeight: 50)
+                .background(
+                    Color.chatBLNPrimary,
+                    in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+                )
             }
+            .buttonStyle(.plain)
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
             .disabled(isSubmitting)
+            .opacity(isSubmitting ? 0.72 : 1.0)
         }
     }
 
