@@ -2,6 +2,14 @@
 
 Quy ước phiên bản: `1.0.x` / `1.x.x` cho các bản cập nhật và sửa lỗi nhỏ (mỗi bậc tối đa `10`, ví dụ `1.0.10` → `1.1.0`); `x.0.0` dành cho thay đổi lớn về kiến trúc, ngôn ngữ lập trình, nâng phiên bản HĐH tối thiểu hoặc đại tu UI/UX.
 
+## v4.0.5 — Chat BLN iOS (2026-11-27 01:25 UTC+7)
+
+- **Phiên bản**: `v4.0.5` (Build `40005`)
+- **Phân loại**: Bản cập nhật & sửa lỗi nhỏ (`1.x.x`, giới hạn tối đa `.10`)
+
+### 🐛 Sửa lỗi
+- fix(ui): compact ChatRoom topbar into single overflow menu for wider group title, fix Form Label icon/badge wrapping on iOS 26 (`b070906`)
+
 ## v4.0.4 — Chat BLN iOS (2026-11-27 01:13 UTC+7)
 
 - **Phiên bản**: `v4.0.4` (Build `40004`)
