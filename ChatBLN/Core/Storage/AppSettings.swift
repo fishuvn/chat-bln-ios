@@ -374,11 +374,13 @@ final class AppUpdateChecker {
     var showUpdateSheet: Bool = false
 
     var currentAppVersion: String {
-        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String)
-            ?.trimmingCharacters(in: .whitespacesAndNewlines)
-            .isEmpty == false
-            ? (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "4.0.0")
-            : "4.0.0"
+        if let raw = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        return "4.0.0"
     }
 
     var shouldShowBanner: Bool {
