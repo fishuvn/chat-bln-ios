@@ -2,6 +2,17 @@
 
 Quy ước phiên bản: `1.0.x` / `1.x.x` cho các bản cập nhật và sửa lỗi nhỏ (mỗi bậc tối đa `10`, ví dụ `1.0.10` → `1.1.0`); `x.0.0` dành cho thay đổi lớn về kiến trúc, ngôn ngữ lập trình, nâng phiên bản HĐH tối thiểu hoặc đại tu UI/UX.
 
+## v3.0.0 — Chat BLN iOS (Rust) (2026-11-26 22:56 UTC+7)
+
+- **Phiên bản**: `v3.0.0` (Build `30000`)
+- **Phân loại**: Cập nhật lớn (`x.0.0` — Kiến trúc / Ngôn ngữ / HĐH / Đại tu UI-UX)
+
+### 🚀 Thay đổi lớn (Cấu trúc / HĐH / UI-UX)
+- arch!: rebuild complete iOS app in 100% Rust (Dioxus 0.7) and add GitHub Releases update checker (`afbf2bd`)
+
+### 🐛 Sửa lỗi
+- fix(ci): expose rust sysroot libLLVM.dylib for rust-objcopy on macOS (`f27850f`)
+
 ## v2.0.0 — Chat BLN iOS (2026-11-26 02:10 UTC+7)
 
 - **Phiên bản**: `v2.0.0` (Build `20000`)
