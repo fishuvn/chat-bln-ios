@@ -314,108 +314,54 @@ extension Color {
         }
     )
 
-    static let chatBLNBeacon = Color(red: 138.0 / 255.0, green: 213.0 / 255.0, blue: 255.0 / 255.0)
+    static let chatBLNBeacon = Color(red: 186.0 / 255.0, green: 230.0 / 255.0, blue: 253.0 / 255.0)
 }
 
-/// Unified Chat BLN "Dual Dialogue" Brand Mark (180° point-symmetric, matches Web `logo.svg` & Android).
+/// Unified Chat BLN "B-Dialogue" Brand Mark (flat precision vector, matches Web `logo.svg` & Android).
 struct ChatBLNBrandMark: View {
     var size: CGFloat = 64
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: size * 0.25, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 29.0 / 255.0, green: 98.0 / 255.0, blue: 248.0 / 255.0),
-                            Color(red: 11.0 / 255.0, green: 59.0 / 255.0, blue: 196.0 / 255.0)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+            RoundedRectangle(cornerRadius: size * (58.0 / 256.0), style: .continuous)
+                .fill(Color(red: 15.0 / 255.0, green: 82.0 / 255.0, blue: 186.0 / 255.0))
 
             Canvas { ctx, canvasSize in
-                let s = min(canvasSize.width, canvasSize.height) / 64.0
-                let ox = (canvasSize.width - 64.0 * s) * 0.5
-                let oy = (canvasSize.height - 64.0 * s) * 0.5
-                func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
-                    CGPoint(x: ox + x * s, y: oy + y * s)
+                let scale = min(canvasSize.width, canvasSize.height) / 256.0
+                let k: CGFloat = 0.72
+                let cx = canvasSize.width * 0.5
+                let cy = canvasSize.height * 0.5
+                func mapX(_ x: CGFloat) -> CGFloat { cx + (x - 128.0) * k * scale }
+                func mapY(_ y: CGFloat) -> CGFloat { cy + (y - 128.0) * k * scale }
+                func mapR(_ r: CGFloat) -> CGFloat { r * k * scale }
+
+                func rrectPath(
+                    _ x0: CGFloat, _ y0: CGFloat, _ x1: CGFloat, _ y1: CGFloat,
+                    _ rtl: CGFloat, _ rtr: CGFloat, _ rbr: CGFloat, _ rbl: CGFloat
+                ) -> Path {
+                    let l = mapX(x0), t = mapY(y0), r = mapX(x1), b = mapY(y1)
+                    let tl = mapR(rtl), tr = mapR(rtr), br = mapR(rbr), bl = mapR(rbl)
+                    var p = Path()
+                    p.move(to: CGPoint(x: l + tl, y: t))
+                    p.addLine(to: CGPoint(x: r - tr, y: t))
+                    p.addArc(center: CGPoint(x: r - tr, y: t + tr), radius: tr, startAngle: .degrees(-90), endAngle: .degrees(0), clockwise: false)
+                    p.addLine(to: CGPoint(x: r, y: b - br))
+                    p.addArc(center: CGPoint(x: r - br, y: b - br), radius: br, startAngle: .degrees(0), endAngle: .degrees(90), clockwise: false)
+                    p.addLine(to: CGPoint(x: l + bl, y: b))
+                    p.addArc(center: CGPoint(x: l + bl, y: b - bl), radius: bl, startAngle: .degrees(90), endAngle: .degrees(180), clockwise: false)
+                    p.addLine(to: CGPoint(x: l, y: t + tl))
+                    p.addArc(center: CGPoint(x: l + tl, y: t + tl), radius: tl, startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
+                    p.closeSubpath()
+                    return p
                 }
 
-                // Back reply bubble (top-right, negative-space moat carved along front bubble)
-                var backPath = Path()
-                backPath.move(to: pt(22.0, 24.5))
-                backPath.addArc(
-                    center: pt(32.5, 24.5),
-                    radius: 10.5 * s,
-                    startAngle: .degrees(180),
-                    endAngle: .degrees(270),
-                    clockwise: false
-                )
-                backPath.addLine(to: pt(47.8, 14.0))
-                backPath.addArc(
-                    center: pt(47.8, 17.2),
-                    radius: 3.2 * s,
-                    startAngle: .degrees(270),
-                    endAngle: .degrees(360),
-                    clockwise: false
-                )
-                backPath.addLine(to: pt(51.0, 26.5))
-                backPath.addArc(
-                    center: pt(40.5, 26.5),
-                    radius: 10.5 * s,
-                    startAngle: .degrees(0),
-                    endAngle: .degrees(67.97),
-                    clockwise: false
-                )
-                backPath.addArc(
-                    center: pt(31.5, 37.5),
-                    radius: 13.0 * s,
-                    startAngle: .degrees(-5.59),
-                    endAngle: .degrees(-90),
-                    clockwise: true
-                )
-                backPath.closeSubpath()
-                ctx.fill(backPath, with: .color(.chatBLNBeacon))
+                let spine = rrectPath(34, 24, 86, 232, 20, 10, 10, 20)
+                let topBowl = rrectPath(104, 24, 212, 119, 12, 47.5, 47.5, 6)
+                let botBowl = rrectPath(104, 137, 222, 232, 6, 47.5, 47.5, 12)
 
-                // Front primary bubble (bottom-left, exact 180° mirror around (32, 32))
-                var frontPath = Path()
-                frontPath.move(to: pt(23.5, 27.0))
-                frontPath.addLine(to: pt(31.5, 27.0))
-                frontPath.addArc(
-                    center: pt(31.5, 37.5),
-                    radius: 10.5 * s,
-                    startAngle: .degrees(-90),
-                    endAngle: .degrees(0),
-                    clockwise: false
-                )
-                frontPath.addLine(to: pt(42.0, 39.5))
-                frontPath.addArc(
-                    center: pt(31.5, 39.5),
-                    radius: 10.5 * s,
-                    startAngle: .degrees(0),
-                    endAngle: .degrees(90),
-                    clockwise: false
-                )
-                frontPath.addLine(to: pt(16.2, 50.0))
-                frontPath.addArc(
-                    center: pt(16.2, 46.8),
-                    radius: 3.2 * s,
-                    startAngle: .degrees(90),
-                    endAngle: .degrees(180),
-                    clockwise: false
-                )
-                frontPath.addLine(to: pt(13.0, 37.5))
-                frontPath.addArc(
-                    center: pt(23.5, 37.5),
-                    radius: 10.5 * s,
-                    startAngle: .degrees(180),
-                    endAngle: .degrees(270),
-                    clockwise: false
-                )
-                frontPath.closeSubpath()
-                ctx.fill(frontPath, with: .color(.white))
+                ctx.fill(topBowl, with: .color(.chatBLNBeacon))
+                ctx.fill(spine, with: .color(.white))
+                ctx.fill(botBowl, with: .color(.white))
             }
         }
         .frame(width: size, height: size)
