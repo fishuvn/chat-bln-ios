@@ -2,6 +2,14 @@
 
 Quy ước phiên bản: `1.0.x` / `1.x.x` cho các bản cập nhật và sửa lỗi nhỏ (mỗi bậc tối đa `10`, ví dụ `1.0.10` → `1.1.0`); `x.0.0` dành cho thay đổi lớn về kiến trúc, ngôn ngữ lập trình, nâng phiên bản HĐH tối thiểu hoặc đại tu UI/UX.
 
+## v4.0.1 — Chat BLN iOS (2026-11-26 23:40 UTC+7)
+
+- **Phiên bản**: `v4.0.1` (Build `40001`)
+- **Phân loại**: Bản cập nhật & sửa lỗi nhỏ (`1.x.x`, giới hạn tối đa `.10`)
+
+### 🐛 Sửa lỗi
+- fix(ui): fix iOS 26 auth/profile/alert UI defects and apply Signal Aperture brand & app icons (`59403c5`)
+
 ## v4.0.0 — Chat BLN iOS (2026-11-26 23:19 UTC+7)
 
 - **Phiên bản**: `v4.0.0` (Build `40000`)
